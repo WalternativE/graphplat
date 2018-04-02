@@ -1,0 +1,139 @@
+{
+  "runtimeTarget": {
+    "name": ".NETStandard,Version=v2.0/",
+    "signature": "27bffe9bb49ff0daf230374ec0d5ac917c3822b5"
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETStandard,Version=v2.0": {},
+    ".NETStandard,Version=v2.0/": {
+      "Cytoscape/1.0.0": {
+        "dependencies": {
+          "FSharp.Core": "4.3.4",
+          "Fable.Core": "1.3.12",
+          "Fable.Import.Browser": "1.1.1",
+          "Microsoft.NETCore.Platforms": "2.0.1",
+          "NETStandard.Library": "2.0.1"
+        },
+        "runtime": {
+          "Cytoscape.dll": {}
+        }
+      },
+      "Fable.Core/1.3.12": {
+        "dependencies": {
+          "FSharp.Core": "4.3.4",
+          "NETStandard.Library": "2.0.1"
+        },
+        "runtime": {
+          "lib/netstandard1.6/Fable.Core.dll": {}
+        }
+      },
+      "Fable.Import.Browser/1.1.1": {
+        "dependencies": {
+          "FSharp.Core": "4.3.4",
+          "Fable.Core": "1.3.12"
+        },
+        "runtime": {
+          "lib/netstandard1.6/Fable.Import.Browser.dll": {}
+        }
+      },
+      "FSharp.Core/4.3.4": {
+        "runtime": {
+          "lib/netstandard1.6/FSharp.Core.dll": {}
+        },
+        "resources": {
+          "lib/netstandard1.6/cs/FSharp.Core.resources.dll": {
+            "locale": "cs"
+          },
+          "lib/netstandard1.6/de/FSharp.Core.resources.dll": {
+            "locale": "de"
+          },
+          "lib/netstandard1.6/en/FSharp.Core.resources.dll": {
+            "locale": "en"
+          },
+          "lib/netstandard1.6/es/FSharp.Core.resources.dll": {
+            "locale": "es"
+          },
+          "lib/netstandard1.6/fr/FSharp.Core.resources.dll": {
+            "locale": "fr"
+          },
+          "lib/netstandard1.6/it/FSharp.Core.resources.dll": {
+            "locale": "it"
+          },
+          "lib/netstandard1.6/ja/FSharp.Core.resources.dll": {
+            "locale": "ja"
+          },
+          "lib/netstandard1.6/ko/FSharp.Core.resources.dll": {
+            "locale": "ko"
+          },
+          "lib/netstandard1.6/pl/FSharp.Core.resources.dll": {
+            "locale": "pl"
+          },
+          "lib/netstandard1.6/pt-BR/FSharp.Core.resources.dll": {
+            "locale": "pt-BR"
+          },
+          "lib/netstandard1.6/ru/FSharp.Core.resources.dll": {
+            "locale": "ru"
+          },
+          "lib/netstandard1.6/tr/FSharp.Core.resources.dll": {
+            "locale": "tr"
+          },
+          "lib/netstandard1.6/zh-Hans/FSharp.Core.resources.dll": {
+            "locale": "zh-Hans"
+          },
+          "lib/netstandard1.6/zh-Hant/FSharp.Core.resources.dll": {
+            "locale": "zh-Hant"
+          }
+        }
+      },
+      "Microsoft.NETCore.Platforms/2.0.1": {},
+      "NETStandard.Library/2.0.1": {
+        "dependencies": {
+          "Microsoft.NETCore.Platforms": "2.0.1"
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Cytoscape/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Fable.Core/1.3.12": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-7Iobm78yfG//4+mCuHbZFtPfAcLgvnYzTyTjTrX5EDrrurhc6mC7kY7y/2NHLtu9z5d0GVYhR8eOWj3C47a61w==",
+      "path": "fable.core/1.3.12",
+      "hashPath": "fable.core.1.3.12.nupkg.sha512"
+    },
+    "Fable.Import.Browser/1.1.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-8ipMYgevglKikHpzvECnDVbYtXKi5SS7kv8CErs9y6SG+C1IonP2nJSjM5BP15xZn3Ak+pv3yMj0yec+eF/1Xw==",
+      "path": "fable.import.browser/1.1.1",
+      "hashPath": "fable.import.browser.1.1.1.nupkg.sha512"
+    },
+    "FSharp.Core/4.3.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-u2UeaUl1pt/Lktdpzq3AsaRmOV1mOiQaSbZgYqQQYuqBSjnILWemetff4xMZIAZi0241jlIkcrJQsU5PlLwIJA==",
+      "path": "fsharp.core/4.3.4",
+      "hashPath": "fsharp.core.4.3.4.nupkg.sha512"
+    },
+    "Microsoft.NETCore.Platforms/2.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Rgwturmal/A4iD0kqWu0NYAjz7hBsioJGTCg3KzaKG9+r9jN7qbhX04L/AQvypaPyMxFfcWUelSby4ZKWxMoEA==",
+      "path": "microsoft.netcore.platforms/2.0.1",
+      "hashPath": "microsoft.netcore.platforms.2.0.1.nupkg.sha512"
+    },
+    "NETStandard.Library/2.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-oA6nwv9MhEKYvLpjZ0ggSpb1g4CQViDVQjLUcDWg598jtvJbpfeP2reqwI1GLW2TbxC/Ml7xL6BBR1HmKPXlTg==",
+      "path": "netstandard.library/2.0.1",
+      "hashPath": "netstandard.library.2.0.1.nupkg.sha512"
+    }
+  }
+}
