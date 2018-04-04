@@ -8,10 +8,10 @@
     <Compile Include="Graph.fs" />
     <Compile Include="Client.fs" />
   </ItemGroup>
-  <Import Project="..\..\.paket\Paket.Restore.targets" />
   <ItemGroup>
     <Reference Include="Cytoscape">
       <HintPath>lib\Cytoscape.dll</HintPath>
     </Reference>
   </ItemGroup>
+  <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

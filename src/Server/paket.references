@@ -4,3 +4,4 @@ group Server
   Microsoft.AspNetCore
   Microsoft.AspNetCore.StaticFiles
   Microsoft.DotNet.Watcher.Tools
+  Marten.FSharp

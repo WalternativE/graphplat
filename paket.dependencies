@@ -1,27 +1,35 @@
 group Server
-  storage: none
-  source https://api.nuget.org/v3/index.json
+    storage: none
+    source https://api.nuget.org/v3/index.json
 
-  nuget FSharp.Core
-  nuget Giraffe ~> 1
-  nuget Microsoft.AspNetCore
-  nuget Microsoft.AspNetCore.StaticFiles
+    nuget FSharp.Core
+    nuget Giraffe ~> 1
+    nuget Microsoft.AspNetCore
+    nuget Microsoft.AspNetCore.StaticFiles
 
-  clitool Microsoft.DotNet.Watcher.Tools
+    nuget Marten.FSharp
+    nuget Npgsql 3.2.7
+
+    clitool Microsoft.DotNet.Watcher.Tools
 
 group Client
-  storage: none
-  source https://api.nuget.org/v3/index.json
+    storage: none
+    source https://api.nuget.org/v3/index.json
 
-  nuget Fable.Core
-  nuget Fable.Elmish.Debugger
-  nuget Fable.Elmish.React
-  nuget Fable.Elmish.HMR
-  nuget Fulma 1.0.0-beta-007
+    nuget Fable.Core
+    nuget Fable.Elmish.Debugger
+    nuget Fable.Elmish.React
+    nuget Fable.Elmish.HMR
+    nuget Fulma 1.0.0-beta-007
 
-  clitool dotnet-fable
+    clitool dotnet-fable
 
 group Build
-  source https://api.nuget.org/v3/index.json
+    source https://api.nuget.org/v3/index.json
 
-  nuget FAKE
+    nuget FAKE
+
+group FSI
+    source https://api.nuget.org/v3/index.json
+
+    nuget NETStandard.Library.NETFramework
