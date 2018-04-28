@@ -10,9 +10,6 @@ open Fable.PowerPack.Fetch
 open Shared
 
 open Fulma
-open Fulma.Layouts
-open Fulma.Elements
-open Fulma.Components
 open Fulma.BulmaClasses
 
 
@@ -80,7 +77,7 @@ let show = function
 
 let button txt onClick =
   Button.button
-    [ Button.IsFullwidth
+    [ Button.IsFullWidth
       Button.Color IsPrimary
       Button.OnClick onClick ]
     [ str txt ]
@@ -110,18 +107,18 @@ let view (model : Model) (dispatch : Msg -> unit) =
             [ safeComponents ] ] ]
 
 
-#if DEBUG
-open Elmish.Debug
-open Elmish.HMR
-#endif
+// #if DEBUG
+// open Elmish.Debug
+// open Elmish.HMR
+// #endif
 
-Program.mkProgram init update view
-#if DEBUG
-|> Program.withConsoleTrace
-|> Program.withHMR
-#endif
-|> Program.withReact "elmish-app"
-#if DEBUG
-|> Program.withDebugger
-#endif
-|> Program.run
+// Program.mkProgram init update view
+// #if DEBUG
+// |> Program.withConsoleTrace
+// |> Program.withHMR
+// #endif
+// |> Program.withReact "elmish-app"
+// #if DEBUG
+// |> Program.withDebugger
+// #endif
+// |> Program.run

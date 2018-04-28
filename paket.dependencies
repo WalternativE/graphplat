@@ -3,12 +3,11 @@ group Server
     source https://api.nuget.org/v3/index.json
 
     nuget FSharp.Core
-    nuget Giraffe ~> 1
-    nuget Microsoft.AspNetCore
-    nuget Microsoft.AspNetCore.StaticFiles
+    nuget Saturn
+    nuget Fable.JsonConverter
 
-    nuget Marten.FSharp
-    nuget Npgsql 3.2.7
+    nuget Marten.FSharp 0.3.0
+    nuget Npgsql
 
     clitool Microsoft.DotNet.Watcher.Tools
 
@@ -17,10 +16,11 @@ group Client
     source https://api.nuget.org/v3/index.json
 
     nuget Fable.Core
+    nuget Fable.Elmish.Browser
     nuget Fable.Elmish.Debugger
     nuget Fable.Elmish.React
     nuget Fable.Elmish.HMR
-    nuget Fulma 1.0.0-beta-007
+    nuget Fulma 1.0.0-beta-016
 
     clitool dotnet-fable
 

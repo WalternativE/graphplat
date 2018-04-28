@@ -1,8 +1,11 @@
 group Client
-  FSharp.Core
-  Fable.Elmish.Debugger
-  Fable.Elmish.React
-  Fable.Elmish.HMR
-  Fable.Core
-  dotnet-fable
-  Fulma
+    FSharp.Core
+
+    Fable.Core
+    Fable.Elmish.Browser
+    Fable.Elmish.Debugger
+    Fable.Elmish.React
+    Fable.Elmish.HMR
+    Fulma
+
+    dotnet-fable
