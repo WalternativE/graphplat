@@ -1,14 +1,29 @@
 module Global
 
-type Username = string
-
 type Page =
     | Login
     | Home
 
+type PageModel =
+    | LoginPageModel
+    | HomePageModel
+
+type JWT = string
+
+type UserData =
+    { UserName : string
+      Token : JWT }
+
 type Model =
-    { User : Username option
-      Page : Page }
+    { User : UserData option
+      PageModel : PageModel }
 
 type Message =
-    | ChangePage of Page
+    | StorageFailure of exn
+    | Logout
+    | LoggedIn of UserData
+    | LoggedOut
+
+let toHash = function
+    | Login -> "#/login"
+    | Home -> "#/home"

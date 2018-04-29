@@ -1,0 +1,10 @@
+@import "../../node_modules/bulma/sass/utilities/initial-variables";
+
+// Bulma customization
+// $body-size: 14px;
+
+// Colors
+$purple: rgb(167, 40, 167);
+$primary: $purple;
+
+@import '../../node_modules/bulma/bulma';
