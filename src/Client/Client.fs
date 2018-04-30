@@ -1,7 +1,6 @@
 module Client
 
 open Elmish
-open Elmish.React
 
 open Fable.Helpers.React
 open Fable.Helpers.React.Props

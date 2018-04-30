@@ -8,3 +8,27 @@ $purple: rgb(167, 40, 167);
 $primary: $purple;
 
 @import '../../node_modules/bulma/bulma';
+
+html, body {
+    height: 100%;
+    padding: 0;
+    margin: 0;
+}
+
+#elmish-app {
+    height: 100%;
+    padding: 0;
+    margin: 0;
+}
+
+div.main-wrapper {
+    height: 100%;
+}
+
+.page-content {
+    min-height: 80%;
+}
+
+.card-content--with-min-height {
+    min-height: 125px;
+}

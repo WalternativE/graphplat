@@ -13,6 +13,21 @@ open Fulma
 open Fulma.BulmaClasses
 open Fable.PowerPack
 
+type Message =
+    | StorageFailure of exn
+    | Logout
+    | LoggedIn of UserData
+    | LoggedOut
+    | LoginMsg of Login.Message
+
+type PageModel =
+    | LoginPageModel of Login.Model
+    | HomePageModel of Home.Model
+
+type Model =
+    { User : UserData option
+      PageModel : PageModel }
+
 let route : Parser<Page -> Page, Page> =
     oneOf
         [ map Login (s "login")
@@ -21,11 +36,13 @@ let route : Parser<Page -> Page, Page> =
 let urlUpdate (result : Page option) model =
     match result with
     | Some Login ->
-        { model with PageModel = LoginPageModel }, Cmd.none
+        let pm, pCmd = Login.init model.User
+        { model with PageModel = LoginPageModel pm }, Cmd.map LoginMsg pCmd
     | Some Home ->
-        { model with PageModel = HomePageModel }, Cmd.none
+        let pm, _ = Home.init model.User
+        { model with PageModel = HomePageModel pm }, Cmd.none
     | None ->
-        model, Navigation.modifyUrl "#/"
+        model, toHash Home |> Navigation.newUrl
 
 let loadUser () : UserData option =
     BrowserLocalStorage.load "user"
@@ -39,31 +56,48 @@ let deleteUserCmd =
 let init result =
     let user = loadUser ()
 
+    // the initial appload will initialize the model correctly
+    let tmpPm = { Home.Model.State = Home.UnAuthenticated; Home.Model.User = user }
+
     let model =
         { User = user
-          PageModel = LoginPageModel }
+          PageModel = HomePageModel tmpPm }
 
     urlUpdate result model
 
 let update (msg : Message) (model : Model) =
-    match msg with
-    | StorageFailure e ->
+    match msg, model.PageModel with
+    | StorageFailure e, _ ->
         printfn "Local storage could not be accessed. %A" e
         model, Cmd.none
-    | Logout ->
+    | Logout, _ ->
         { model with User = None}, deleteUserCmd
-    | LoggedOut ->
-        model, toHash Login |> Navigation.modifyUrl
-    | LoggedIn user ->
-        { model with User = Some user }, toHash Home |> Navigation.modifyUrl
+    | LoggedOut, _ ->
+        model, toHash Login |> Navigation.newUrl
+    | LoggedIn user, _ ->
+        { model with User = Some user }, toHash Home |> Navigation.newUrl
+    | LoginMsg lim, LoginPageModel m ->
+        let m, cmd, externalMsg = Login.update lim m
+
+        let appCmd =
+            match externalMsg with
+            | Login.UserLoggedIn ud ->
+                saveUserCmd ud
+            | Login.NoOp -> Cmd.none
+
+        { model with PageModel = LoginPageModel m}, Cmd.batch [ Cmd.map LoginMsg cmd; appCmd ]
+    | LoginMsg _, _ -> model, Cmd.none
+
 
 let viewPage (model : Model) dispatch =
     match model.PageModel with
-    | LoginPageModel -> Login.view
-    | HomePageModel -> Home.view
+    | LoginPageModel pm ->
+        Login.view pm (LoginMsg >> dispatch)
+    | HomePageModel pm ->
+        Home.view pm (fun () -> ())
 
 let view (model : Model) dispatch =
-    R.div []
+    R.div [ RP.Class "main-wrapper" ]
         [ Navbar.navbar [ Navbar.IsFixedTop ]
             [ Navbar.Brand.div []
                 [ Navbar.Item.a [ Navbar.Item.Props [ RP.Href "#/" ] ]
@@ -77,7 +111,8 @@ let view (model : Model) dispatch =
                       else
                         yield Button.a [ Button.Color IsPrimary; Button.Props [ toHash Login |> RP.Href ] ] [ R.str "Login"] ] ] ]
           R.hr []
-          viewPage model dispatch
+          R.div [ RP.Class "page-content" ]
+            [ viewPage model dispatch ]
           Footer.footer []
             [ Content.content [ Content.CustomClass Bulma.Properties.Alignment.HasTextCentered ]
                 [ R.h6 [] [ R.str "GraphPlat Dev - Copyright Gregor Beyerle" ] ] ] ]
