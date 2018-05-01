@@ -1,25 +1,8 @@
-// #load @"references.fsx"
 #load @"referencesnetstd.fsx"
+#load @"../Shared/Domain.fs"
+#load @"DataAccess.fs"
 
-type User =
-    { Id : string
-      Name : string}
-
-type Event<'T> =
-    { Id : string
-      Payload : 'T }
-
-type UserEvent =
-    | UserCreatedEvent of string * string
-    | UserUpdatedEvent of string * string
-
-type Command<'T> =
-    { Id : string
-      Payload : string }
-
-type UserCommand =
-    | CreateUserCommand of Command<string * string>
-
+open System
 open Marten
 
 let connString = "Host=localhost;Port=5432;Username=postgres;Password=admin123;Database=graphplat"
@@ -27,17 +10,29 @@ let connString = "Host=localhost;Port=5432;Username=postgres;Password=admin123;D
 let store = DocumentStore.For connString
 let session = store.LightweightSession ()
 
-open System
+open Marten.Session
 
-let guidString () = Guid.NewGuid() |> string
+// storeSingle user session
+// saveChanges session
 
-let uce : Event<UserEvent> = { Id = guidString (); Payload = UserCreatedEvent (guidString(), "Bob") }
+// let res =
+//     session
+//     |> query<User>
+//     |> Queryable.filter <@ fun e -> e.Name = "gregor.beyerle@gmail.com" @>
+//     |> Queryable.head
 
-session.Store(uce)
-session.SaveChanges()
+// type Workspace =
+//     { Id : Guid
+//       Description : string
+//       CreatedAt : DateTime }
 
-let oSession = store.OpenSession()
-let existing = oSession.Query<UserEvent>()
+// let nWs =
+//     { Id = Guid.NewGuid ()
+//       Description = "A test workspace"
+//       CreatedAt = DateTime.UtcNow }
+// let wsGuid = Guid.Parse "99db821e-9afa-4484-bdb1-0cef74dff97f"
 
-existing
-|> Seq.iter (fun s -> printfn "%A" s)
+// storeSingle nWs session
+// saveChanges session
+
+// let ws = loadByGuid<Workspace> wsGuid session
