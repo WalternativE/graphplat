@@ -1,38 +1,33 @@
 #load @"referencesnetstd.fsx"
-#load @"../Shared/Domain.fs"
+// #load @"../Shared/Domain.fs"
 #load @"DataAccess.fs"
 
 open System
 open Marten
+open Domain.Model
+open Domain.Events
+open Domain.EventStore
+open DataAccess
 
 let connString = "Host=localhost;Port=5432;Username=postgres;Password=admin123;Database=graphplat"
+let da = MartenStore.eventStore connString
 
-let store = DocumentStore.For connString
-let session = store.LightweightSession ()
+let guid1 = Guid.Parse "84b197b8-fa66-4aac-a727-9446db4522ab"
+let guid2 = Guid.Parse "84b197b8-fa66-4aac-a722-9446db4522ab"
 
-open Marten.Session
+let userEvents = da.getUserEvents ()
+let stream = da.getStream guid2
 
-// storeSingle user session
-// saveChanges session
+let aUser = { Id = Guid.NewGuid (); Email = "gregor.beyerle@gmail.com" }
+let aWorkspace = { Id = Guid.NewGuid (); Name = "Test workspace" }
+let aUserSpace = { User = aUser; Workspaces = [] }
 
-// let res =
-//     session
-//     |> query<User>
-//     |> Queryable.filter <@ fun e -> e.Name = "gregor.beyerle@gmail.com" @>
-//     |> Queryable.head
+UserSpaceCreated aUserSpace
+|> da.writeStreamedEvent guid2
 
-// type Workspace =
-//     { Id : Guid
-//       Description : string
-//       CreatedAt : DateTime }
+let stream = da.getStream guid2
 
-// let nWs =
-//     { Id = Guid.NewGuid ()
-//       Description = "A test workspace"
-//       CreatedAt = DateTime.UtcNow }
-// let wsGuid = Guid.Parse "99db821e-9afa-4484-bdb1-0cef74dff97f"
+UserCreated aUser
+|> da.writeUserEvent
 
-// storeSingle nWs session
-// saveChanges session
-
-// let ws = loadByGuid<Workspace> wsGuid session
+let userEvents = da.getUserEvents ()

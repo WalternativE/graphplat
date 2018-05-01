@@ -1,4 +1,4 @@
-module Domain
+namespace Domain
 
 open System
 
@@ -22,23 +22,34 @@ module Events =
 
     open Model
 
+    type IEvent = interface
+        end
+
     // users are independet from user spaces
     // currently there is no need to stream user events (not enough action to merit the hassle)
     type UserEvent =
         | UserCreated of User
         | UserEmailChanged of User
 
+        with interface IEvent
+
     type Event =
         | UserSpaceCreated of UserSpace
+
+        with interface IEvent
 
 module EventStore =
 
     open Events
 
-    type Streamed =
+    type StoreEvent<'a when 'a :> IEvent> =
+        { Id : Guid
+          Event : 'a }
+
+    type StreamedStoreEvent<'a when 'a :> IEvent> =
         { Id : Guid
           StreamId : Guid
-          Event : Event }
+          Event : 'a }
 
 module Queries =
 
@@ -49,13 +60,13 @@ module Queries =
         | GetUserspace of User
 
 
-module Behaviour =
+// module Behaviour =
 
-    open Model
-    open Events
+//     open Model
+//     open Events
 
 
-module Projection =
+// module Projection =
 
-    open Model
-    open Events
+//     open Model
+//     open Events
