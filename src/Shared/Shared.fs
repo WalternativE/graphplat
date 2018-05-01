@@ -8,6 +8,3 @@ type LoginCredentials =
 [<CLIMutable>]
 type TokenResult =
     { Token : string }
-
-type Counter = int
-

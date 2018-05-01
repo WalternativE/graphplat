@@ -9,28 +9,31 @@ open System
 open Fable.PowerPack
 open Fable.PowerPack.Fetch.Fetch_types
 
+open Domain.Model
+
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
 
 type Model =
-    { User : UserData option
+    { UserData : UserData option
       Email : string
       Password : string
       ErrorMsg : string }
 
 type Message =
-    | SubmitLogin
+    | AcquireToken
     | SetEmail of string
     | SetPassword of string
     | AuthError of exn
-    | LoginSuccess of TokenResult
+    | TokenAcquired of TokenResult
+    | UserDataResolved of UserData
 
 type ExternalMessage =
     | NoOp
     | UserLoggedIn of UserData
 
 let init (user : UserData option) =
-    { User = user; Email = null; Password = null; ErrorMsg = null }, Cmd.none
+    { UserData = user; Email = null; Password = null; ErrorMsg = null }, Cmd.none
 
 let authUser (creds : LoginCredentials) =
     promise {
@@ -48,17 +51,33 @@ let authUser (creds : LoginCredentials) =
         try
             return! Fetch.fetchAs<TokenResult> "/api/token" props
         with _ ->
-            return failwithf "Cold not authenticate user."
+            return failwithf "Could not authenticate user."
     }
 
 let authUserCmd creds =
-    Cmd.ofPromise authUser creds LoginSuccess AuthError
+    Cmd.ofPromise authUser creds TokenAcquired AuthError
 
+let acquireUserData (tr : TokenResult) =
+    promise {
+        let props =
+            [ RequestProperties.Method HttpMethod.GET
+              Fetch.requestHeaders
+                [ HttpRequestHeaders.ContentType "application/json"
+                  HttpRequestHeaders.Authorization ("Bearer " + tr.Token) ] ]
+
+        try
+            let! user = Fetch.fetchAs<User> "/api/secured/users/current" props
+            return { User = user; Token = tr.Token}
+        with _ ->
+            return failwithf "Final user auth lookup failed."
+    }
+
+let acquireUserDataCmd tr =
+    Cmd.ofPromise acquireUserData tr UserDataResolved  AuthError
 
 let update (msg : Message) (model : Model) =
     match msg with
-    | SubmitLogin ->
-        printfn "SubmitLogin received %A" model
+    | AcquireToken ->
         let creds =
             { Email = model.Email
               Password = model.Password }
@@ -67,9 +86,11 @@ let update (msg : Message) (model : Model) =
     | SetPassword p -> { model with Password = p }, Cmd.none, NoOp
     | AuthError e ->
         { model with ErrorMsg = e.Message }, Cmd.none, NoOp
-    | LoginSuccess token ->
-        let ud = { UserName = model.Email; Token = token.Token }
-        { User = Some ud; Email = ""; Password = ""; ErrorMsg = "" }, Cmd.none, UserLoggedIn ud
+    | TokenAcquired token ->
+        model, acquireUserDataCmd token, NoOp
+    | UserDataResolved ud ->
+        { model with UserData = Some ud; Email = ""; Password = "" }, Cmd.none, UserLoggedIn ud
+
 
 let displayProps model =
     let hideNotification = String.IsNullOrWhiteSpace model.ErrorMsg
@@ -104,7 +125,7 @@ let view model dispatch =
                               Input.OnChange (fun ev -> dispatch (SetPassword !!ev.target?value)) ] ] ]
                   Field.div [ Field.IsGrouped ]
                     [ Control.div []
-                        [ Button.button [ Button.Color IsPrimary; Button.OnClick (fun _ -> dispatch SubmitLogin) ]
+                        [ Button.button [ Button.Color IsPrimary; Button.OnClick (fun _ -> dispatch AcquireToken) ]
                             [ R.str "Submit" ] ]
                       Control.div []
                         [ Button.button [ Button.Color IsWhite ]

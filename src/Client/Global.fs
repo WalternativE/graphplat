@@ -1,4 +1,5 @@
 module Global
+open Domain.Model
 
 type Page =
     | Login
@@ -7,9 +8,14 @@ type Page =
 type JWT = string
 
 type UserData =
-    { UserName : string
+    { User : User
       Token : JWT }
 
 let toHash = function
     | Login -> "#/login"
     | Home -> "#/home"
+
+// quite hacky
+let extractFetchError (msg : string) =
+    msg.Split(' ')
+    |> Array.head

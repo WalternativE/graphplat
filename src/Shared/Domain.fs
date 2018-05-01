@@ -5,9 +5,11 @@ open System
 module Model =
 
     type Email = string
+    type UserName = string
 
     type User =
         { Id : Guid
+          Name : UserName
           Email : Email }
 
     type Workspace =
@@ -15,58 +17,90 @@ module Model =
           Name : string }
 
     type UserSpace =
-        { User : User
+        { Id : Guid
+          User : User
           Workspaces : Workspace list }
 
 module Events =
 
     open Model
 
-    type IEvent = interface
-        end
+    type UserError =
+        | EmailAlreadyUsed of Email
 
-    // users are independet from user spaces
-    // currently there is no need to stream user events (not enough action to merit the hassle)
     type UserEvent =
         | UserCreated of User
-        | UserEmailChanged of User
+        | UserError of UserError
 
-        with interface IEvent
+    type Error =
+        | AlreadyExists of UserSpace
+
+    let errorToString (e : Error) =
+        match e with
+        | AlreadyExists us -> sprintf "The userspace for user %s already exists." us.User.Name
 
     type Event =
         | UserSpaceCreated of UserSpace
-
-        with interface IEvent
+        | Error of Error
 
 module EventStore =
 
-    open Events
-
-    type StoreEvent<'a when 'a :> IEvent> =
-        { Id : Guid
-          Event : 'a }
-
-    type StreamedStoreEvent<'a when 'a :> IEvent> =
+    type StreamedStoreEvent<'a> =
         { Id : Guid
           StreamId : Guid
           Event : 'a }
 
 module Queries =
 
+    type UserQuery =
+        | GetUser of Guid
+
+    type SpacesQuery =
+        | GetUserspace of Guid
+
+module Commands =
+
     open Model
 
-    type Query =
-        | GetUser of Email
-        | GetUserspace of User
+    type UserCommand =
+        | CreateUser of User
+
+    type SpacesCommand =
+        | CreateUserSpace of User
+
+module Behaviour =
+
+    open Model
+
+    let createUserSpace (user : User) =
+        { Id = user.Id
+          User = user
+          Workspaces = [] }
 
 
-// module Behaviour =
+module Projection =
 
-//     open Model
-//     open Events
+    open Model
+    open Events
 
+    let state folder (givenHistory : 'b List) (model : 'c) =
+        givenHistory
+        |> List.fold folder model
 
-// module Projection =
+    let applyToUser (user : User) (ue : UserEvent) =
+        match ue with
+        | UserCreated _ ->
+            user
+        | UserError _ ->
+            user
 
-//     open Model
-//     open Events
+    let userState = state applyToUser
+
+    let applyToUserSpace (userSpace : UserSpace) (e : Event) =
+        match e with
+        | UserSpaceCreated _ ->
+            userSpace
+        | Error _ ->
+            userSpace
+
+    let userSpacesState = state applyToUserSpace

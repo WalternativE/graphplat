@@ -19,6 +19,7 @@ type Message =
     | LoggedIn of UserData
     | LoggedOut
     | LoginMsg of Login.Message
+    | HomeMsg of Home.Message
 
 type PageModel =
     | LoginPageModel of Login.Model
@@ -39,8 +40,8 @@ let urlUpdate (result : Page option) model =
         let pm, pCmd = Login.init model.User
         { model with PageModel = LoginPageModel pm }, Cmd.map LoginMsg pCmd
     | Some Home ->
-        let pm, _ = Home.init model.User
-        { model with PageModel = HomePageModel pm }, Cmd.none
+        let pm, pCmd = Home.init model.User
+        { model with PageModel = HomePageModel pm }, Cmd.map HomeMsg pCmd
     | None ->
         model, toHash Home |> Navigation.newUrl
 
@@ -57,7 +58,7 @@ let init result =
     let user = loadUser ()
 
     // the initial appload will initialize the model correctly
-    let tmpPm = { Home.Model.State = Home.UnAuthenticated; Home.Model.User = user }
+    let tmpPm = { Home.Model.State = Home.UnAuthenticated; Home.Model.UserData = user; Home.Model.Space = None }
 
     let model =
         { User = user
@@ -87,6 +88,11 @@ let update (msg : Message) (model : Model) =
 
         { model with PageModel = LoginPageModel m}, Cmd.batch [ Cmd.map LoginMsg cmd; appCmd ]
     | LoginMsg _, _ -> model, Cmd.none
+    | HomeMsg hm, HomePageModel pm ->
+        let m, cmd = Home.update hm pm
+
+        { model with PageModel = HomePageModel m}, Cmd.map HomeMsg cmd
+    | HomeMsg _, _ -> model, Cmd.none
 
 
 let viewPage (model : Model) dispatch =
