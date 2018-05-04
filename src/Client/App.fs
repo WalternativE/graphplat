@@ -18,6 +18,7 @@ type Message =
     | Logout
     | LoggedIn of UserData
     | LoggedOut
+    | AuthTimedOut
     | LoginMsg of Login.Message
     | HomeMsg of Home.Message
 
@@ -58,7 +59,10 @@ let init result =
     let user = loadUser ()
 
     // the initial appload will initialize the model correctly
-    let tmpPm = { Home.Model.State = Home.UnAuthenticated; Home.Model.UserData = user; Home.Model.Space = None }
+    let tmpPm = { Home.Model.State = Home.UnAuthenticated;
+                  Home.Model.UserData = user;
+                  Home.Model.Space = None
+                  Home.Model.NewWorkspaceDialog = Home.NewWorkspaceDialog.empty () }
 
     let model =
         { User = user
@@ -77,6 +81,8 @@ let update (msg : Message) (model : Model) =
         model, toHash Login |> Navigation.newUrl
     | LoggedIn user, _ ->
         { model with User = Some user }, toHash Home |> Navigation.newUrl
+    | AuthTimedOut, _ ->
+        { model with User = None }, Cmd.batch [ deleteUserCmd; toHash Login |> Navigation.newUrl ]
     | LoginMsg lim, LoginPageModel m ->
         let m, cmd, externalMsg = Login.update lim m
 
@@ -89,9 +95,15 @@ let update (msg : Message) (model : Model) =
         { model with PageModel = LoginPageModel m}, Cmd.batch [ Cmd.map LoginMsg cmd; appCmd ]
     | LoginMsg _, _ -> model, Cmd.none
     | HomeMsg hm, HomePageModel pm ->
-        let m, cmd = Home.update hm pm
+        let m, cmd, extMsg = Home.update hm pm
 
-        { model with PageModel = HomePageModel m}, Cmd.map HomeMsg cmd
+        let appCmd =
+            match extMsg with
+            | Home.AuthenticationError ->
+                Cmd.ofMsg AuthTimedOut
+            | Home.NoOp -> Cmd.none
+
+        { model with PageModel = HomePageModel m}, Cmd.batch [ Cmd.map HomeMsg cmd; appCmd ]
     | HomeMsg _, _ -> model, Cmd.none
 
 
@@ -100,7 +112,7 @@ let viewPage (model : Model) dispatch =
     | LoginPageModel pm ->
         Login.view pm (LoginMsg >> dispatch)
     | HomePageModel pm ->
-        Home.view pm (fun () -> ())
+        Home.view pm (HomeMsg >> dispatch)
 
 let view (model : Model) dispatch =
     R.div [ RP.Class "main-wrapper" ]
@@ -135,7 +147,7 @@ Program.mkProgram init update view
 |> Program.withHMR
 #endif
 |> Program.withReact "elmish-app"
-#if DEBUG
-|> Program.withDebugger
-#endif
+// #if DEBUG
+// |> Program.withDebugger
+// #endif
 |> Program.run
