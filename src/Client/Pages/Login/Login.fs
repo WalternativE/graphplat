@@ -59,11 +59,7 @@ let authUserCmd creds =
 
 let acquireUserData (tr : TokenResult) =
     promise {
-        let props =
-            [ RequestProperties.Method HttpMethod.GET
-              Fetch.requestHeaders
-                [ HttpRequestHeaders.ContentType "application/json"
-                  HttpRequestHeaders.Authorization ("Bearer " + tr.Token) ] ]
+        let props = standardGetProps tr.Token
 
         try
             let! user = Fetch.fetchAs<User> "/api/secured/users/current" props

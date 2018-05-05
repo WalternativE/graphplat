@@ -10,5 +10,3 @@
 #r @"C:\Users\Gregor\.nuget\packages\system.reflection.emit.lightweight\4.3.0\lib\netstandard1.3\System.Reflection.Emit.Lightweight.dll"
 #r @"C:\Users\Gregor\.nuget\packages\system.threading.tasks.dataflow\4.8.0\lib\netstandard2.0\System.Threading.Tasks.Dataflow.dll"
 #r @"C:\Users\Gregor\.nuget\packages\marten.fsharp\0.3.0\lib\netstandard2.0\Marten.FSharp.dll"
-// #load @"../Shared/Domain.fs"
-// #load @"DataAccess.fs"

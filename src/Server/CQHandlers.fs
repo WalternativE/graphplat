@@ -3,9 +3,7 @@ module CQHandlers
 open DataAccess
 open Domain.Events
 open Domain.Queries
-open Domain.Commands
 open Domain.Projection
-open Domain
 
 let userQueryHandler (userEs : EventStore<UserEvent>) =
     let handleQuery (query : UserQuery) =
@@ -42,31 +40,3 @@ let spacesQueryHandler (spacesEs : EventStore<Event>) =
                 |> Option.map (fun usp -> userSpacesState evs usp)
 
     handleQuery
-
-// let userComandHandler (userEs : EventStore<UserEvent>) =
-//     let handleCommand (command : UserCommand) =
-//         match command with
-//         | CreateUser ->
-//             let user
-
-    // handleCommand
-
-let commandHandler (spacesEs : EventStore<Event>)  =
-    let query = spacesQueryHandler spacesEs
-
-    let handleCommand (command : SpacesCommand) =
-        match command with
-        | CreateUserSpace user ->
-            let space = GetUserspace user.Id |> query
-            match space with
-            | Some s ->
-                let ev = AlreadyExists s |> Error
-                spacesEs.writeEvent s.Id ev
-                ev
-            | None ->
-                let s = Behaviour.createUserSpace user
-                let ev = UserSpaceCreated s
-                spacesEs.writeEvent s.Id ev
-                ev
-
-    handleCommand
