@@ -57,7 +57,6 @@ let update (msg : Message) (model : Model) =
         else
             { model with PageState = InitialisationFailed }, Cmd.none, NoOp
     | GraphMsg gm ->
-        printfn "Container msg posted! %A" gm
         let m, cmd = Graph.update gm model.GraphModel
         { model with GraphModel = m }, Cmd.map GraphMsg cmd, NoOp
 

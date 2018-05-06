@@ -5,11 +5,11 @@ open Fable.Core
 open Fable.Import.JS
 open Fable.Import.Browser
 
-let [<Import("cytoscape","cytoscape")>] cytoscape: Cytoscape.IExports = jsNative
+let [<Import("*","cytoscape")>] cytoscape: Cytoscape.CytoscapeOptions -> Cytoscape.Core= jsNative
 
-type [<AllowNullLiteral>] IExports =
-    abstract cytoscape: ?options: Cytoscape.CytoscapeOptions -> Cytoscape.Core
-    abstract cytoscape: extensionName: string * foo: string * bar: obj option -> Cytoscape.Core
+// type [<AllowNullLiteral>] IExports =
+//     abstract cytoscape: ?options: Cytoscape.CytoscapeOptions -> Cytoscape.Core
+//     abstract cytoscape: extensionName: string * foo: string * bar: obj option -> Cytoscape.Core
 
 module Cytoscape =
 

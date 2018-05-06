@@ -1,7 +1,8 @@
-var path = require("path");
-var webpack = require("webpack");
-var fableUtils = require("fable-utils");
+const path = require("path");
+const webpack = require("webpack");
+const fableUtils = require("fable-utils");
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CircularDependencyPlugin = require('circular-dependency-plugin');
 
 function resolve(filePath) {
     return path.join(__dirname, filePath)
@@ -25,6 +26,14 @@ var commonPlugins = [
         template: resolve('./index.html'),
         hash: true,
         minify: isProduction ? {} : false
+    }),
+    new CircularDependencyPlugin({
+        // exclude detection of files based on a RegExp
+        exclude: /a\.js|node_modules/,
+        // add errors to webpack instead of warnings
+        failOnError: true,
+        // set the current working directory for displaying module paths
+        cwd: process.cwd(),
     })
 ];
 

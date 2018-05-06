@@ -29,9 +29,11 @@ module B = Fable.Import.Browser
 let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
     match msg with
     | ContainerAvailable el ->
+        printfn "%A" C.cytoscape
+
         let opts = createEmpty<C.Cytoscape.CytoscapeOptions>
         opts.container <- (Some el)
-        let core = C.cytoscape.cytoscape opts
+        let core = C.cytoscape opts
 
         // just for dev
         printfn "%A" core
