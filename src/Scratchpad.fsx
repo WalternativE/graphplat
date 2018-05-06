@@ -28,7 +28,7 @@ let events = [ ev; ev2 ]
 let initUs = Domain.Projection.initialUserSpace events
 let currentUs = Domain.Projection.userSpacesState events initUs.Value
 
-let duplicateWs = 
+let duplicateWs =
     { Workspace.Id = Guid.NewGuid ()
       Workspace.Name = "A test workspace" }
 let cwsCmd = CreateWorkSpace duplicateWs

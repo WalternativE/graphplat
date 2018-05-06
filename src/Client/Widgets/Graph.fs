@@ -34,17 +34,11 @@ let update (msg : Msg) (model : Model) : Model * Cmd<Msg> =
         let core = C.cytoscape.cytoscape opts
 
         // just for dev
-        B.console.log <| sprintf "%A" core
+        printfn "%A" core
 
-        { model with Core = Some core }, Cmd.none
+        { model with Core = None }, Cmd.none
     | ContainerUnavailable ->
         { model with Core = None }, Cmd.none
-
-let refHandler (element : Fable.Import.Browser.Element) =
-    if isNull element then
-        ContainerUnavailable
-    else
-        ContainerUnavailable
 
 module IR = Fable.Import.React
 

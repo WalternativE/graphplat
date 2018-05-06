@@ -9,6 +9,7 @@ open Fable.Core.JsInterop
 type Page =
     | Login
     | Home
+    | Workspace of string
 
 type JWT = string
 
@@ -19,6 +20,7 @@ type UserData =
 let toHash = function
     | Login -> "#/login"
     | Home -> "#/home"
+    | Workspace s -> sprintf "#/workspaces/%s" s
 
 // quite hacky
 let extractFetchError (msg : string) =

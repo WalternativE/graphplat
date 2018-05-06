@@ -5,6 +5,7 @@ open Global
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
 
+open System
 open Elmish
 open Elmish.React
 open Elmish.Browser.UrlParser
@@ -21,10 +22,12 @@ type Message =
     | AuthTimedOut
     | LoginMsg of Login.Message
     | HomeMsg of Home.Message
+    | WorkspaceMsg of Workspace.Message
 
 type PageModel =
     | LoginPageModel of Login.Model
     | HomePageModel of Home.Model
+    | WorkspacePageModel of Workspace.Model
 
 type Model =
     { User : UserData option
@@ -33,7 +36,8 @@ type Model =
 let route : Parser<Page -> Page, Page> =
     oneOf
         [ map Login (s "login")
-          map Home (s "home") ]
+          map Home (s "home")
+          map Workspace (s "workspaces" </> str) ]
 
 let urlUpdate (result : Page option) model =
     match result with
@@ -43,6 +47,15 @@ let urlUpdate (result : Page option) model =
     | Some Home ->
         let pm, pCmd = Home.init model.User
         { model with PageModel = HomePageModel pm }, Cmd.map HomeMsg pCmd
+    | Some (Workspace wsId) ->
+        match model.User with
+        | Some u ->
+            let pm, pCmd =
+                Guid.Parse wsId
+                |> Workspace.init u
+            { model with PageModel = WorkspacePageModel pm }, Cmd.map WorkspaceMsg pCmd
+        | None ->
+            model, toHash Login |> Navigation.newUrl
     | None ->
         model, toHash Home |> Navigation.newUrl
 
@@ -101,10 +114,26 @@ let update (msg : Message) (model : Model) =
             match extMsg with
             | Home.AuthenticationError ->
                 Cmd.ofMsg AuthTimedOut
+            | Home.OpenWorkspace ws ->
+                string ws.Id
+                |> Workspace
+                |> toHash
+                |> Navigation.newUrl
             | Home.NoOp -> Cmd.none
 
         { model with PageModel = HomePageModel m}, Cmd.batch [ Cmd.map HomeMsg cmd; appCmd ]
     | HomeMsg _, _ -> model, Cmd.none
+    | WorkspaceMsg wm, WorkspacePageModel pm ->
+        let m, cmd, externalMsg = Workspace.update wm pm
+
+        let appCmd =
+            match externalMsg with
+            | Workspace.AuthFailed ->
+                Cmd.ofMsg AuthTimedOut
+            | Workspace.NoOp -> Cmd.none
+
+        { model with PageModel = WorkspacePageModel m }, Cmd.batch [ Cmd.map WorkspaceMsg cmd; appCmd ]
+    | WorkspaceMsg _, _ -> model, Cmd.none
 
 
 let viewPage (model : Model) dispatch =
@@ -113,6 +142,8 @@ let viewPage (model : Model) dispatch =
         Login.view pm (LoginMsg >> dispatch)
     | HomePageModel pm ->
         Home.view pm (HomeMsg >> dispatch)
+    | WorkspacePageModel pm ->
+        Workspace.view pm (WorkspaceMsg >> dispatch)
 
 let view (model : Model) dispatch =
     R.div [ RP.Class "main-wrapper" ]
@@ -143,7 +174,7 @@ open Elmish.HMR
 Program.mkProgram init update view
 |> Program.toNavigable (parseHash route) urlUpdate
 #if DEBUG
-|> Program.withConsoleTrace
+// |> Program.withConsoleTrace
 |> Program.withHMR
 #endif
 |> Program.withReact "elmish-app"

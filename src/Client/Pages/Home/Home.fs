@@ -9,7 +9,6 @@ open Elmish
 open Domain.Model
 
 open Fable.Core.JsInterop
-open Fable.PowerPack
 
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
@@ -41,6 +40,7 @@ type Model =
 type ExternalMessage =
     | NoOp
     | AuthenticationError
+    | OpenWorkspace of Workspace
 
 type Message =
     | UserSpaceLoaded of UserSpace
@@ -50,60 +50,24 @@ type Message =
     | SetWorkspaceName of string
     | SubmitNewWorkspaceClicked
     | WorkSpaceCreated of Workspace
-
-let loadUserSpace (token : JWT) = promise {
-    let props = standardGetProps token
-
-    try
-        return! Fetch.fetchAs<UserSpace> "/api/secured/users/current/user-space" props
-    with e ->
-        return
-            e.Message
-            |> extractFetchError
-            |> failwithf "%s"
-}
+    | DeleteWorkspaceClicked of Workspace
+    | WorkSapceDeleted of Workspace
+    | OpenWorkspaceClicked of Workspace
 
 let loadUserSpaceCmd token =
-    Cmd.ofPromise loadUserSpace token UserSpaceLoaded FetchError
-
-let createUserSpace (token : JWT) = promise {
-    let props = standardPostProps token
-
-    try
-        return! Fetch.fetchAs<UserSpace> "/api/secured/users/current/user-space" props
-    with e ->
-        return
-            e.Message
-            |> extractFetchError
-            |> failwithf "%s"
-}
+    Cmd.ofPromise ApiClient.loadUserSpace token UserSpaceLoaded FetchError
 
 let createUserSpaceCmd token =
-    Cmd.ofPromise createUserSpace token UserSpaceLoaded FetchError
+    Cmd.ofPromise ApiClient.createUserSpace token UserSpaceLoaded FetchError
 
-let createWorkSpace (args : NewWorkspaceDialog * JWT) = promise {
-    let (dialog, token) = args
-
+let createWorkSpaceCmd (dialog : NewWorkspaceDialog) token =
     let ws =
         { Id = dialog.Id
           Name = dialog.Name }
-        |> toJson
+    Cmd.ofPromise ApiClient.createWorkSpace (ws, token) WorkSpaceCreated FetchError
 
-    let props =
-        standardPostProps token
-        |> addBody ws
-
-    try
-        return! Fetch.fetchAs<Workspace> "/api/secured/workspaces" props
-    with e ->
-        return
-            e.Message
-            |> extractFetchError
-            |> failwithf "%s"
-}
-
-let createWorkSpaceCmd dialog token =
-    Cmd.ofPromise createWorkSpace (dialog, token) WorkSpaceCreated FetchError
+let deleteWorkSpaceCmd (workspace : Workspace ) token =
+    Cmd.ofPromise ApiClient.deleteWorkspace (workspace.Id, token) (fun _ -> WorkSapceDeleted workspace ) FetchError
 
 let init (user : UserData option) =
     let model = { State = UnAuthenticated;
@@ -144,6 +108,19 @@ let update (msg : Message) (model : Model) =
             model.Space
             |> Option.map (fun s -> { s with Workspaces = ws::s.Workspaces})
         { model with Space = space; NewWorkspaceDialog = NewWorkspaceDialog.empty () }, Cmd.none, NoOp
+    | DeleteWorkspaceClicked ws ->
+        model, deleteWorkSpaceCmd ws model.UserData.Value.Token, NoOp
+    | WorkSapceDeleted ws ->
+        let space =
+            model.Space
+            |> Option.map (fun s ->
+                    let wss =
+                        s.Workspaces
+                        |> List.filter (fun w -> w = ws |> not)
+                    { s with Workspaces = wss})
+        { model with Space = space }, Cmd.none, NoOp
+    | OpenWorkspaceClicked ws ->
+        model, Cmd.none, OpenWorkspace ws
 
 let oneThirdDesktop =
     Column.Width (Column.Desktop, Column.IsOneThird)
@@ -166,8 +143,8 @@ let viewWorkspaces (model : Model) dispatch =
                           R.br []
                           sprintf "Name: %s" ws.Name |> R.str ]
                       Card.footer []
-                        [ Card.Footer.item [] [ R.str "Open" ]
-                          Card.Footer.item [] [ R.str "Delete" ] ] ] ] ]
+                        [ Card.Footer.item [ GenericOption.Props [ RP.OnClick (fun _ -> OpenWorkspaceClicked ws |> dispatch) ] ] [ R.str "Open" ]
+                          Card.Footer.item [ GenericOption.Props [ RP.OnClick (fun _ -> DeleteWorkspaceClicked ws |> dispatch) ] ] [ R.str "Delete" ] ] ] ] ]
     | None -> []
 
 let viewNewWorkspaceDialog (model : Model) dispatch =

@@ -43,6 +43,9 @@ let commandHandler (userId : Guid) (cmd : SpacesCommand) =
     spacesEventStore.writeEvent userId ev
     ev
 
+let handleUnexpectedBehavior =
+    setStatusCode 520 >=> text "An unexpected application state was created."
+
 let handlePostToken (nxt : HttpFunc) (ctx : HttpContext) = task {
     let! model = ctx.BindJsonAsync<LoginCredentials>()
 
@@ -65,12 +68,11 @@ let getUserSpace (nxt : HttpFunc) (ctx : HttpContext) = task {
     | None ->
         let resp = setStatusCode 404 >=> text "Not found"
         return! resp nxt ctx
-    | Some usp ->
+    | Some (UserSpaceResult usp) ->
         return! json usp nxt ctx
+    | Some _ ->
+        return! handleUnexpectedBehavior nxt ctx
 }
-
-let handleUnexpectedBehavior =
-    setStatusCode 520 >=> text "An unexpected application state was created."
 
 let createUserSpace (nxt : HttpFunc) (ctx : HttpContext) = task {
     let user = getUser ctx
@@ -109,8 +111,6 @@ let createWorkspace (nxt : HttpFunc) (ctx : HttpContext) = task {
 }
 
 let deleteWorkSpace (workspaceId : Guid) (nxt : HttpFunc) (ctx : HttpContext) = task {
-    printfn "Hello from deleteWorkSpace"
-
     let ws = { Id = workspaceId; Name = "" }
     let user = getUser ctx
 
@@ -133,12 +133,30 @@ let deleteWorkSpace (workspaceId : Guid) (nxt : HttpFunc) (ctx : HttpContext) = 
     | _ -> return! handleUnexpectedBehavior nxt ctx
 }
 
+let getWorkspace (workspaceId : Guid) (nxt : HttpFunc) (ctx : HttpContext) = task {
+    let user = getUser ctx
+
+    let queryResult =
+        GetWorkspace (user.Id, workspaceId)
+        |> queryHandler
+
+    match queryResult with
+    | None ->
+        let resp = setStatusCode 404 >=> text "The requested workspace could not be found"
+        return! resp nxt ctx
+    | Some (WorkspaceResult ws) ->
+        return! json ws nxt ctx
+    | Some _ ->
+        return! handleUnexpectedBehavior nxt ctx
+}
+
 let securedApiRouter = scope {
     pipe_through (Auth.requireAuthentication JWT)
     get "/users/current" getCurrentUser
     get "/users/current/user-space" getUserSpace
     post "/users/current/user-space" createUserSpace
     post "/workspaces" createWorkspace
+    getf "/workspaces/%O" getWorkspace
 
     // TODO currently delete does not work in Saturn
     // change when https://github.com/SaturnFramework/Saturn/pull/53 is merged

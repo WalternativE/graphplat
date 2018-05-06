@@ -6,10 +6,6 @@ open Elmish
 open Fable.Core.JsInterop
 open Shared
 open System
-open Fable.PowerPack
-open Fable.PowerPack.Fetch.Fetch_types
-
-open Domain.Model
 
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
@@ -35,41 +31,11 @@ type ExternalMessage =
 let init (user : UserData option) =
     { UserData = user; Email = null; Password = null; ErrorMsg = null }, Cmd.none
 
-let authUser (creds : LoginCredentials) =
-    promise {
-        if String.IsNullOrWhiteSpace creds.Email then failwith "Please supply email"
-        if String.IsNullOrWhiteSpace creds.Password then failwith "Please supply password"
-
-        let body = toJson creds
-
-        let props =
-            [ RequestProperties.Method HttpMethod.POST
-              Fetch.requestHeaders
-                [ HttpRequestHeaders.ContentType "application/json" ]
-              RequestProperties.Body !^body ]
-
-        try
-            return! Fetch.fetchAs<TokenResult> "/api/token" props
-        with _ ->
-            return failwithf "Could not authenticate user."
-    }
-
 let authUserCmd creds =
-    Cmd.ofPromise authUser creds TokenAcquired AuthError
-
-let acquireUserData (tr : TokenResult) =
-    promise {
-        let props = standardGetProps tr.Token
-
-        try
-            let! user = Fetch.fetchAs<User> "/api/secured/users/current" props
-            return { User = user; Token = tr.Token}
-        with _ ->
-            return failwithf "Final user auth lookup failed."
-    }
+    Cmd.ofPromise ApiClient.authUser creds TokenAcquired AuthError
 
 let acquireUserDataCmd tr =
-    Cmd.ofPromise acquireUserData tr UserDataResolved  AuthError
+    Cmd.ofPromise ApiClient.acquireUserData tr UserDataResolved  AuthError
 
 let update (msg : Message) (model : Model) =
     match msg with

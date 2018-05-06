@@ -60,11 +60,20 @@ module EventStore =
 
 module Queries =
 
+    open Model
+
     type UserQuery =
         | GetUser of Guid
 
+    type UserAndWorkspaceId = Guid * Guid
+
+    type QueryResult =
+        | UserSpaceResult of UserSpace
+        | WorkspaceResult of Workspace
+
     type SpacesQuery =
         | GetUserspace of Guid
+        | GetWorkspace of UserAndWorkspaceId
 
 module Commands =
 
