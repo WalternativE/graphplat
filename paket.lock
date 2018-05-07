@@ -78,6 +78,10 @@ NUGET
     Fulma (1.0.0-beta-016)
       Fable.Core (>= 1.3.12) - restriction: >= netstandard1.6
       Fable.React (>= 3.1) - restriction: >= netstandard1.6
+    Fulma.Extensions (1.0.0-beta-015)
+      Fable.Core (>= 1.3.12) - restriction: >= netstandard1.6
+      Fable.React (>= 3.1) - restriction: >= netstandard1.6
+      Fulma (>= 1.0.0-beta-014) - restriction: >= netstandard1.6
     Microsoft.DiaSymReader (1.2) - restriction: >= netcoreapp2.0
       Microsoft.Net.Compilers (>= 2.3) - restriction: || (>= net20) (>= netstandard1.1)
       NETStandard.Library (>= 1.6.1) - restriction: && (< net20) (>= netstandard1.1)

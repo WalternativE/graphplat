@@ -12,13 +12,7 @@
     <Compile Include="Pages/Login/Login.fs" />
     <Compile Include="Pages/Home/Home.fs" />
     <Compile Include="Pages/Workspace/Workspace.fs" />
-    <Compile Include="Client.fs" />
     <Compile Include="App.fs" />
   </ItemGroup>
-  <!-- <ItemGroup>
-    <Reference Include="Cytoscape">
-      <HintPath>lib\Cytoscape.dll</HintPath>
-    </Reference>
-  </ItemGroup> -->
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>

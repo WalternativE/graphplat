@@ -21,6 +21,7 @@ group Client
     nuget Fable.Elmish.React
     nuget Fable.Elmish.HMR
     nuget Fulma 1.0.0-beta-016
+    nuget Fulma.Extensions 1.0.0-beta-015
 
     clitool dotnet-fable
 

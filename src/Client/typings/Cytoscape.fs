@@ -732,8 +732,7 @@ module Cytoscape =
         abstract nodes: ResizeArray<NodeDefinition> with get, set
         abstract edges: ResizeArray<EdgeDefinition> with get, set
 
-    type [<AllowNullLiteral>] EventHandler =
-        [<Emit "$0($1...)">] abstract Invoke: ``event``: EventObject -> unit
+    type EventHandler = EventObject -> unit
 
     /// The output is a collection of node and edge elements OR single element.
     type [<AllowNullLiteral>] CollectionElements =
