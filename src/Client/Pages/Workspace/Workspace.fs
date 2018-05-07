@@ -43,7 +43,7 @@ type Message =
 let init (userData : UserData) (wId : Guid) =
     let gm, gcmd = Graph.init ()
 
-    let qv = { IsActive = true }
+    let qv = { IsActive = false }
 
     { UserData = userData
       WorkspaceId = wId

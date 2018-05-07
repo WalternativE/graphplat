@@ -12,9 +12,21 @@ module RP = Fable.Helpers.React.Props
 module C = Cytoscape
 module B = Fable.Import.Browser
 
+type WorkflowStepState =
+    | Prestine
+
+type WorkflowStep =
+    { Id : Guid
+      State : WorkflowStepState }
+
+type Workflow =
+    | Empty
+    | Node of WorkflowStep * Workflow list
+
 type Model =
     { Id : string
-      Core : C.Cytoscape.Core option }
+      Core : C.Cytoscape.Core option
+      Workflow : Workflow }
 
 type ExtMsg =
     | NoOp
@@ -27,33 +39,84 @@ type Msg =
 and
     DispatchFunc = Msg -> unit
 
-let init () : Model * Cmd<Msg> =
+let init () =
     let model =
         let guid = Guid.NewGuid()
-        { Id = guid.ToString(); Core = None }
+        { Id = guid.ToString()
+          Core = None
+          Workflow = Empty }
     model, Cmd.none
 
 module B = Fable.Import.Browser
 
-let createNode (id :int) =
+let toNodesAndEdges (wf : Workflow) =
+    let rec toNodesAndEdges current source wf =
+        match source, wf with
+        | None, Empty -> [], []
+        | Some _, Empty -> [], []
+        | Some s, Node (wsStep, wfs) ->
+            let (nodes, edges) = current
+            let nextSource = string wsStep.Id |> Some
+            let edge = (s, string wsStep.Id)
+            let cns = (string wsStep.Id)::nodes
+            let edgs = edge::edges
+
+
+            wfs
+            |> List.map (fun workflow -> toNodesAndEdges (cns, edgs) nextSource workflow)
+            |> List.fold (fun (cnn, cee) (nn, ee) -> cnn@nn, cee@ee ) (cns, edgs)
+
+
+        | None, Node (wsStep, wfs) ->
+            let (nodes, edges) = current
+            let nextSource = string wsStep.Id |> Some
+            let cns = (string wsStep.Id)::nodes
+
+            wfs
+            |> List.map (fun workflow -> toNodesAndEdges (cns, edges) nextSource workflow)
+            |> List.fold (fun (cnn, cee) (nn, ee) -> cnn@nn, cee@ee ) (cns, edges)
+
+    let (nodes, edges) =
+        toNodesAndEdges ([], []) None wf
+
+    Set.ofList nodes, edges
+
+let iterWorkflow (f : WorkflowStep -> unit) (workflow : Workflow) =
+    let rec iterWorkflow workflow =
+        match workflow with
+        | Empty -> ()
+        | Node (step, wfs) ->
+            f step
+            wfs |> List.iter iterWorkflow
+
+    iterWorkflow workflow
+
+// let addStep (workflow : Workflow) (parentStep : WorkflowStep) (nodeToAdd : WorkflowStep) =
+//     let rec addStep parentStep nodeToAdd next =
+//         match workflow with
+//         | Empty -> Empty
+//         |
+
+
+let createNode (id :string) =
     let eDef = createEmpty<C.Cytoscape.NodeDefinition>
     eDef.group <- Some C.Cytoscape.ElementGroup.Nodes
     let dataDef = createEmpty<C.Cytoscape.NodeDataDefinition>
-    dataDef.id <- string id |> Some
+    dataDef.id <- Some id
     eDef.data <- dataDef
     eDef
 
-let createEdge (e : int * int) =
+let createEdge (e : string * string) =
     let (id1, id2) = e
     let def = createEmpty<C.Cytoscape.EdgeDefinition>
     def.group <- Some C.Cytoscape.ElementGroup.Edges
     let data = createEmpty<C.Cytoscape.EdgeDataDefinition>
-    data.source <- string id1
-    data.target <- string id2
+    data.source <- id1
+    data.target <- id2
     def.data <- data
     def
 
-let createGraph (edges : List<int * int>) (ids : Set<int>) =
+let createGraph (ids : Set<string>) (edges : (string * string) list) =
     let nodes =
         ids
         |> Set.toList
@@ -77,10 +140,21 @@ let handleNodeTap (dispatch : DispatchFunc) (eo : Cytoscape.EventObject) =
 let update (msg : Msg) (model : Model) =
     match msg with
     | ContainerAvailable (el, dispatch) ->
+        let connectorGuid = Guid.NewGuid ()
+        let workflow =
+            Node ( { Id = Guid.NewGuid (); State = Prestine },
+                    [ Node ( { Id = Guid.NewGuid (); State = Prestine },
+                             [ Node ( { Id = connectorGuid; State = Prestine }, [] ) ] )
+                      Node ( { Id = Guid.NewGuid (); State = Prestine },
+                             [ Node ( { Id = connectorGuid; State = Prestine }, [] ) ] ) ] )
+
+        workflow
+        |> iterWorkflow (fun s -> sprintf "Id of the node is %O" s.Id |> B.console.log)
+
         let graph =
-            [1; 2; 3; 4; 5]
-            |> Set.ofList
-            |> createGraph [(1, 2); (2, 3); (3, 4); (4, 5)]
+            workflow
+            |> toNodesAndEdges
+            |> (fun (nodes, edges) -> createGraph nodes edges)
 
         let opts = createEmpty<C.Cytoscape.CytoscapeOptions>
         opts.container <- (Some el)
