@@ -12,9 +12,26 @@ module Model =
           Name : UserName
           Email : Email }
 
+    type WorkflowStepState =
+        | Prestine
+
+    type WorkflowStep =
+        { Id : Guid
+          State : WorkflowStepState }
+
+    type WorkflowTree =
+        | Empty
+        | Node of WorkflowStep * WorkflowTree list
+
+    type Workflow =
+        { Id: Guid
+          AssignedWorkspace : Guid
+          WorkflowTree : WorkflowTree }
+
     type Workspace =
         { Id : Guid
-          Name : string }
+          Name : string
+          Workflow : Workflow option }
 
     type UserSpace =
         { Id : Guid
@@ -32,6 +49,9 @@ module Events =
         | UserCreated of User
         | UserError of UserError
 
+    type WorkflowError =
+        | WorkflowAlreadyExists of Workflow
+
     type Error =
         | AlreadyExists of UserSpace
         | NoUserSpace
@@ -43,13 +63,19 @@ module Events =
         | AlreadyExists us -> sprintf "The userspace for user %s already exists." us.User.Name
         | NoUserSpace -> "No userspace exists which can be used for operations."
         | WsNameNotUnique ws -> sprintf """The name "%s" you chose for your new workspace is already used.""" ws.Name
-        | WsNotFound ws -> sprintf "The workspace with the id %A could not be found." ws.Id
+        | WsNotFound ws -> sprintf "The workspace with the id %O could not be found." ws.Id
+
+    type WorkflowEvent =
+        | WorkflowCreated of Workflow
+        | WorkflowError of WorkflowError
 
     type Event =
         | UserSpaceCreated of UserSpace
         | WorkspaceCreated of Workspace
         | WorkspaceDeleted of Workspace
+        | WorkflowEvent of WorkflowEvent
         | Error of Error
+open Events
 
 module EventStore =
 
@@ -82,15 +108,18 @@ module Commands =
     type UserCommand =
         | CreateUser of User
 
+    type WorkflowCommand =
+        | CreateWorkflow of Workflow
+
     type SpacesCommand =
         | CreateUserSpace of User
         | CreateWorkSpace of Workspace
         | DeleteWorkSpace of Workspace
+        | WorkflowCommand  of WorkflowCommand
 
 module Projection =
 
     open Model
-    open Events
 
     let state folder (givenHistory : 'b List) (model : 'c) =
         givenHistory
@@ -105,6 +134,36 @@ module Projection =
 
     let userState = state applyToUser
 
+    let applyToWorkflow (workflow : Workflow) (wev : WorkflowEvent) =
+        match wev with
+        | WorkflowCreated _ ->
+            workflow
+        | WorkflowError _ ->
+            workflow
+
+    let workflowState = state applyToWorkflow
+
+    let initialWorkflow (evs : WorkflowEvent list) =
+        match evs with
+        | [] -> None
+        | initialEvent::_ ->
+            match initialEvent with
+            | WorkflowCreated wf -> Some wf
+            | _ -> None
+
+    let applyWorkflowEvent (wfev : WorkflowEvent) (userspace : UserSpace) =
+        match wfev with
+        | WorkflowCreated wf ->
+            let wss =
+                userspace.Workspaces
+                |> List.map (fun ws ->
+                                if ws.Id = wf.AssignedWorkspace then
+                                    { ws with Workflow = Some wf}
+                                else ws )
+            { userspace with Workspaces = wss }
+        | WorkflowError _ ->
+            userspace
+
     let applyToUserSpace (userSpace : UserSpace) (e : Event) =
         match e with
         | UserSpaceCreated _ ->
@@ -116,6 +175,8 @@ module Projection =
                 userSpace.Workspaces
                 |> List.filter (fun w -> w.Id = ws.Id |> not)
             { userSpace with Workspaces = wss }
+        | WorkflowEvent wfev ->
+            applyWorkflowEvent wfev userSpace
         | Error _ ->
             userSpace
 
@@ -132,7 +193,6 @@ module Projection =
 module Behaviour =
 
     open Model
-    open Events
     open Commands
     open Projection
 
@@ -140,6 +200,43 @@ module Behaviour =
         { Id = user.Id
           User = user
           Workspaces = [] }
+
+    let iterWorkflow (f : WorkflowStep -> unit) (workflow : WorkflowTree) =
+        let rec iterWorkflow workflow =
+            match workflow with
+            | Empty -> ()
+            | Node (step, wfs) ->
+                f step
+                wfs |> List.iter iterWorkflow
+
+        iterWorkflow workflow
+
+    let addStep (parentStep : WorkflowStep) (flowToAdd : WorkflowTree) (baseWorkflow : WorkflowTree) =
+        let rec addStep parentStep flowToAdd baseWorkflow =
+            match baseWorkflow with
+            | Empty -> Empty
+            | Node (step, workflows) when step = parentStep ->
+                Node (step, flowToAdd::workflows)
+            | Node (step, workflows) ->
+                Node (step, workflows |> List.map (addStep step flowToAdd))
+
+        addStep parentStep flowToAdd baseWorkflow
+
+    let handleWorkflowCommand (events : Event list) (command : WorkflowCommand) =
+        let wfHistory =
+            events
+            |> List.map (fun ev ->
+                                match ev with
+                                | WorkflowEvent wfe -> Some wfe
+                                | _ -> None )
+            |> List.filter Option.isSome
+            |> List.map (fun o -> o.Value)
+
+        match command with
+        | CreateWorkflow wf ->
+            match initialWorkflow  wfHistory with
+            | None -> WorkflowCreated wf
+            | Some _ -> WorkflowAlreadyExists wf |> WorkflowError
 
     let handleCommand (events : Event list) (command : SpacesCommand) =
         match command with
@@ -175,3 +272,6 @@ module Behaviour =
                     WorkspaceDeleted ws
                 else
                     WsNotFound ws |> Error
+        | WorkflowCommand wfcmd ->
+            handleWorkflowCommand events wfcmd
+            |> WorkflowEvent

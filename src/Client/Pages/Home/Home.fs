@@ -63,7 +63,8 @@ let createUserSpaceCmd token =
 let createWorkSpaceCmd (dialog : NewWorkspaceDialog) token =
     let ws =
         { Id = dialog.Id
-          Name = dialog.Name }
+          Name = dialog.Name
+          Workflow = None }
     Cmd.ofPromise ApiClient.createWorkSpace (ws, token) WorkSpaceCreated FetchError
 
 let deleteWorkSpaceCmd (workspace : Workspace ) token =

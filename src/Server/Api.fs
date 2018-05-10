@@ -111,7 +111,10 @@ let createWorkspace (nxt : HttpFunc) (ctx : HttpContext) = task {
 }
 
 let deleteWorkSpace (workspaceId : Guid) (nxt : HttpFunc) (ctx : HttpContext) = task {
-    let ws = { Id = workspaceId; Name = "" }
+    let ws =
+        { Id = workspaceId;
+          Name = ""
+          Workflow = None }
     let user = getUser ctx
 
     let ev =
