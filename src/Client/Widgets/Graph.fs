@@ -6,7 +6,10 @@ open Elmish
 open Cytoscape
 open System
 open Fable.Import.React
+open Domain
 open Domain.Model
+open Domain.Commands
+open Fulma
 
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
@@ -21,20 +24,22 @@ type Model =
 type ExtMsg =
     | NoOp
     | NodeSelected
+    | AddStep of AddStep
 
 type Msg =
     | ContainerAvailable of Fable.Import.Browser.HTMLElement * DispatchFunc
     | ContainerUnavailable
     | NodeTapped
+    | CreateFirstNodeClicked
 and
     DispatchFunc = Msg -> unit
 
-let init () =
+let init (wft : WorkflowTree) =
     let model =
         let guid = Guid.NewGuid()
         { Id = guid.ToString()
           Core = None
-          Workflow = Empty }
+          Workflow = wft }
     model, Cmd.none
 
 module B = Fable.Import.Browser
@@ -136,6 +141,12 @@ let update (msg : Msg) (model : Model) =
         { model with Core = None }, Cmd.none, NoOp
     | NodeTapped ->
         { model with Core = None }, Cmd.none, NodeSelected
+    | CreateFirstNodeClicked ->
+        let step = Behaviour.newWorkflowStep ()
+        let initialTree = Node (step, [])
+
+        let addFirst = AddFirst step
+        { model with Workflow = initialTree }, Cmd.none, AddStep addFirst
 
 module IR = Fable.Import.React
 
@@ -157,4 +168,12 @@ type GraphComponent(initialProps) =
 let inline graph props children = R.ofType<GraphComponent, _, _> props children
 
 let view (model : Model) (dispatch : Msg -> unit) =
-    graph { Id = model.Id; Dispatch = dispatch } []
+    match model.Workflow with
+    | Empty ->
+        Content.content []
+            [ Button.button
+                [ Button.Color IsPrimary
+                  Button.IsFullWidth
+                  Button.OnClick (fun _ -> dispatch CreateFirstNodeClicked ) ]
+                [ R.str "Click here to create your first node!" ] ]
+    | Node _ -> graph { Id = model.Id; Dispatch = dispatch } []

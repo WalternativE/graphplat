@@ -37,10 +37,10 @@ let getCurrentUser next (ctx : HttpContext) = task {
     return! json user next ctx
 }
 
-let commandHandler (userId : Guid) (cmd : SpacesCommand) =
-    let history = spacesEventStore.getEvents userId
+let commandHandler (streamId : Guid) (cmd : SpacesCommand) =
+    let history = spacesEventStore.getEvents streamId
     let ev = Behaviour.handleCommand history cmd
-    spacesEventStore.writeEvent userId ev
+    spacesEventStore.writeEvent streamId ev
     ev
 
 let handleUnexpectedBehavior =
@@ -153,6 +153,74 @@ let getWorkspace (workspaceId : Guid) (nxt : HttpFunc) (ctx : HttpContext) = tas
         return! handleUnexpectedBehavior nxt ctx
 }
 
+let getWorkflow (workflowId : Guid) (nxt : HttpFunc) (ctx : HttpContext) = task {
+    let user = getUser ctx
+
+    let queryResult =
+        GetWorkflow (user.Id, workflowId)
+        |> WorkflowQuery
+        |> queryHandler
+
+    match queryResult with
+    | None ->
+        let resp = setStatusCode 404 >=> text "The requested workspace could not be found"
+        return! resp nxt ctx
+    | Some (WorkflowResult wf) ->
+        return! json wf nxt ctx
+    | Some _ ->
+        return! handleUnexpectedBehavior nxt ctx
+}
+
+let createWorkflow (nxt : HttpFunc) (ctx : HttpContext) = task {
+    let! model = ctx.BindJsonAsync<Workflow>()
+    let user = getUser ctx
+
+    let createEvent =
+        CreateWorkflow model
+        |> WorkflowCommand
+        |> commandHandler user.Id
+
+    match createEvent with
+    | WorkflowEvent (WorkflowError e) ->
+        let errorText = workflowErrorToString e
+        match e with
+        | WorkflowAlreadyExists _ ->
+            let resp = setStatusCode 409 >=>  text errorText
+            return! resp nxt ctx
+        | NoWorkspaceForWorkflow _ ->
+            let resp = setStatusCode 400 >=> text errorText
+            return! resp nxt ctx
+        | _ -> return! handleUnexpectedBehavior nxt ctx
+    | WorkflowEvent (WorkflowCreated wf) ->
+        let resp = setStatusCode 201 >=> json wf
+        return! resp nxt ctx
+    | _ -> return! handleUnexpectedBehavior nxt ctx
+}
+
+let handleAddStep (nxt : HttpFunc) (ctx : HttpContext) = task {
+    let! model = ctx.BindJsonAsync<WorkflowCommand>()
+    let user = getUser ctx
+
+    match model with
+    | AddStep _ ->
+        let evt =
+            model
+            |> WorkflowCommand
+            |> commandHandler user.Id
+
+        match evt with
+        | WorkflowEvent (WorkflowStepAdded wf) ->
+            let resp = setStatusCode 201 >=> json wf
+            return! resp nxt ctx
+        | WorkflowEvent (WorkflowError e) ->
+            let resp = setStatusCode 400 >=> text (workflowErrorToString e)
+            return! resp nxt ctx
+        | _ -> return! handleUnexpectedBehavior nxt ctx
+    | _ ->
+        let resp = setStatusCode 400 >=> text "Expected to get an AddStep command but received something else."
+        return! resp nxt ctx
+}
+
 let securedApiRouter = scope {
     pipe_through (Auth.requireAuthentication JWT)
     get "/users/current" getCurrentUser
@@ -163,7 +231,11 @@ let securedApiRouter = scope {
 
     // TODO currently delete does not work in Saturn
     // change when https://github.com/SaturnFramework/Saturn/pull/53 is merged
-    postf "/workspaces/%O" deleteWorkSpace }
+    postf "/workspaces/%O" deleteWorkSpace
+
+    getf "/workflows/%O" getWorkflow
+    post "/workflows" createWorkflow
+    post "/workflows/add-step" handleAddStep }
 
 let apiRouter = scope {
     pipe_through (pipeline { set_header "x-pipeline-type" "Api" })

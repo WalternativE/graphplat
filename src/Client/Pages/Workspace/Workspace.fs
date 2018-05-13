@@ -2,6 +2,7 @@ module Workspace
 
 open Global
 open Domain.Model
+open Domain.Commands
 
 open System
 open Fulma
@@ -11,6 +12,7 @@ open ApiClient
 
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
+module B = Fable.Import.Browser
 
 type PageState =
     | FreshlyOpened
@@ -20,17 +22,12 @@ type PageState =
 type QuickViewModel =
     { IsActive : bool }
 
-type GraphDisplay =
-    | NotInitialized
-    | NoWorkflowExisting
-    | ModelFound of Workflow * Graph.Model
-
 type Model =
     { UserData : UserData
       WorkspaceId : Guid
       Workspace : Workspace option
       PageState : PageState
-      GraphDisplay : GraphDisplay
+      GraphModel : Graph.Model option
       QuickViewModel : QuickViewModel }
 
 type ExternalMessage =
@@ -40,10 +37,13 @@ type ExternalMessage =
 type Message =
     | LookUpWorkspace of Guid
     | WorkspaceFound of Workspace
+    | WorkflowCreated of Workflow
     | FetchError of exn
     | GraphMsg of Graph.Msg
     | HideQuickView
     | ShowQuickView
+    | AddStep of AddStep
+    | StepAdded of Workflow
 
 let init (userData : UserData) (wId : Guid) =
     let qv = { IsActive = false }
@@ -52,26 +52,55 @@ let init (userData : UserData) (wId : Guid) =
       WorkspaceId = wId
       Workspace = None
       PageState = FreshlyOpened
-      GraphDisplay = NotInitialized
+      GraphModel = None
       QuickViewModel = qv }, LookUpWorkspace wId |> Cmd.ofMsg
 
 let getWorkspaceCmd wsId token =
     Cmd.ofPromise getWorkspace (wsId, token) WorkspaceFound FetchError
+
+let createWorkflowCmd workflow token =
+    Cmd.ofPromise createWorkflow (workflow, token) WorkflowCreated FetchError
+
+let addStepCmd workflow addStep token =
+    Cmd.ofPromise addWorkflowStep ((workflow, addStep), token) StepAdded FetchError
 
 let update (msg : Message) (model : Model) =
     match msg with
     | LookUpWorkspace wsid ->
         model, getWorkspaceCmd wsid model.UserData.Token, NoOp
     | WorkspaceFound ws ->
-        { model with PageState = Initialised; Workspace = Some ws}, Cmd.none, NoOp
+        let (graphModel, cmd) =
+            match ws.Workflow with
+            | Some wf ->
+                let gm, gcmd = Graph.init wf.WorkflowTree
+                (Some gm, gcmd |> Cmd.map GraphMsg)
+            | None ->
+                let newWf =
+                    { Id = Guid.NewGuid ()
+                      AssignedWorkspace = ws.Id
+                      WorkflowTree = Empty }
+                None, createWorkflowCmd newWf model.UserData.Token
+
+        { model with
+            PageState = Initialised
+            Workspace = Some ws
+            GraphModel = graphModel }, cmd, NoOp
+    | WorkflowCreated wf ->
+        let ws =
+            model.Workspace
+            |> Option.map (fun ws -> { ws with Workflow = Some wf })
+        { model with Workspace = ws }, Cmd.none, NoOp
     | FetchError e ->
         if e.Message = "401" then
             model, Cmd.none, AuthFailed
+        elif e.Message = "409" then
+            B.console.log "A conflict happened creating the new workflow"
+            { model with PageState = InitialisationFailed }, Cmd.none, NoOp
         else
             { model with PageState = InitialisationFailed }, Cmd.none, NoOp
     | GraphMsg gm ->
-        match model.GraphDisplay with
-        | ModelFound (wf, graphModel) ->
+        match model.GraphModel with
+        | Some graphModel ->
             let m, cmd, ext = Graph.update gm graphModel
 
             let appCmd =
@@ -79,23 +108,35 @@ let update (msg : Message) (model : Model) =
                 | Graph.NoOp -> Cmd.none
                 | Graph.NodeSelected ->
                     Cmd.ofMsg ShowQuickView
+                | Graph.AddStep addStep ->
+                    Cmd.ofMsg (AddStep addStep)
 
-            { model with GraphDisplay = ModelFound (wf, m) }, Cmd.batch [ Cmd.map GraphMsg cmd; appCmd ], NoOp
-        | _ -> model, Cmd.none, NoOp
+            { model with GraphModel = Some m }, Cmd.batch [ Cmd.map GraphMsg cmd; appCmd ], NoOp
+        | None -> model, Cmd.none, NoOp
     | HideQuickView ->
         { model with QuickViewModel = { model.QuickViewModel with IsActive = false } }, Cmd.none, NoOp
     | ShowQuickView ->
         { model with QuickViewModel = { model.QuickViewModel with IsActive = true } }, Cmd.none, NoOp
+    | AddStep addStep ->
+        match model.Workspace with
+        | None -> model, Cmd.none, NoOp
+        | Some ws ->
+            match ws.Workflow with
+            | None -> model, Cmd.none, NoOp
+            | Some wf -> model, addStepCmd wf addStep model.UserData.Token, NoOp
+    | StepAdded wf ->
+        // TODO the graph component keeps its changes in memory - I might want to sync here
+        { model with
+            Workspace =
+                model.Workspace
+                |> Option.map (fun ws -> { ws with Workflow = Some wf }) }, Cmd.none, NoOp
 
 let viewGraphPanel model dispatch =
-    match model.GraphDisplay with
-    | NotInitialized ->
+    match model.GraphModel with
+    | None ->
         [ Content.content []
             [ R.str "Loading..." ] ]
-    | GraphDisplay.NoWorkflowExisting ->
-        [ Content.content []
-            [ R.str "Cannot find a workflow assigned to the workspace." ] ]
-    | GraphDisplay.ModelFound (_, gm) ->
+    | Some gm ->
         [ Content.content []
             [ Graph.view gm (GraphMsg >> dispatch) ] ]
 

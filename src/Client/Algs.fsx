@@ -75,14 +75,3 @@ let wf2 = Node (secondStep, [])
 let compoundWf = addStep baseStep wf2 wf
 
 let (nodes, edges) = toNodesAndEdges compoundWf
-
-let doSomething (bla : 'a when 'a : equality) =
-    bla
-
-let aVal = 15
-let anotherVal = "Hello World"
-let afunc = (fun () -> ())
-
-doSomething aVal
-doSomething anotherVal
-// doSomething afunc // this fails

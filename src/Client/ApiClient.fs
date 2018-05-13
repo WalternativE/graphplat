@@ -4,6 +4,7 @@ open Shared
 open Global
 
 open Domain.Model
+open Domain.Commands
 
 open System
 open Fable.Core.JsInterop
@@ -102,6 +103,38 @@ let getWorkspace (args : Guid * JWT) = promise {
     let url = sprintf "/api/secured/workspaces/%O" id
     try
         return! Fetch.fetchAs<Workspace> url props
+    with e ->
+        return e.Message
+        |> extractFetchError
+        |> failwithf "%s"
+}
+
+let createWorkflow (args : Workflow * JWT) = promise {
+    let (wf, token) = args
+
+    let props =
+        standardPostProps token
+        |> addBody (toJson wf)
+
+    try
+        return! Fetch.fetchAs<Workflow> "/api/secured/workflows" props
+    with e ->
+        return e.Message
+        |> extractFetchError
+        |> failwithf "%s"
+}
+
+type AddStepPayload = Workflow * AddStep
+let addWorkflowStep (args : AddStepPayload * JWT ) = promise {
+    let (payload, token) = args
+
+    let cmd = AddStep payload
+    let props =
+        standardPostProps token
+        |> addBody (toJson cmd)
+
+    try
+        return! Fetch.fetchAs<Workflow> "/api/secured/workflows/add-step" props
     with e ->
         return e.Message
         |> extractFetchError

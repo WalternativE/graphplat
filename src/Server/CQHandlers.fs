@@ -25,6 +25,24 @@ let userQueryHandler (userEs : EventStore<UserEvent>) =
 
 // TODO optimize queries to go direclty against marten filters and projections
 let spacesQueryHandler (spacesEs : EventStore<Event>) =
+    let handleWorkflowQuery (wfq : WorkflowQuery) =
+        match wfq with
+        | GetWorkflow (uid, wfid) ->
+            let evs =
+                spacesEs.getEvents uid
+            let uso =
+                initialUserSpace evs
+                |> Option.map (userSpacesState evs)
+
+            uso
+            |> Option.bind (fun us ->
+                                us.Workspaces
+                                |> List.tryFind (fun ws ->
+                                                    match ws.Workflow with
+                                                    | None -> false
+                                                    | Some wf -> wf.Id = wfid)
+                                |> Option.bind (fun ws -> ws.Workflow))
+
     let handleQuery (query : SpacesQuery) =
         match query with
         | GetUserspace uId ->
@@ -50,5 +68,8 @@ let spacesQueryHandler (spacesEs : EventStore<Event>) =
                         cUs.Workspaces
                         |> List.tryFind (fun w -> w.Id = wsId)
                         |> Option.map WorkspaceResult )
+        | WorkflowQuery wfq ->
+            handleWorkflowQuery wfq
+            |> Option.map WorkflowResult
 
     handleQuery
