@@ -56,11 +56,9 @@ let toNodesAndEdges (wf : WorkflowTree) =
             let cns = (string wsStep.Id)::nodes
             let edgs = edge::edges
 
-
             wfs
             |> List.map (fun workflow -> toNodesAndEdges (cns, edgs) nextSource workflow)
             |> List.fold (fun (cnn, cee) (nn, ee) -> cnn@nn, cee@ee ) (cns, edgs)
-
 
         | None, Node (wsStep, wfs) ->
             let (nodes, edges) = current

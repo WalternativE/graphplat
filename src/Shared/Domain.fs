@@ -13,8 +13,25 @@ module Model =
           Name : UserName
           Email : Email }
 
+    type SimpleNode =
+        { Id : int
+          Label : string }
+
+    type SimpleEdge =
+        { From : int
+          To : int
+          Label : string }
+
+    type SimpleGraph =
+        { Nodes : SimpleNode list
+          Edges : SimpleEdge list }
+
+    type InputType =
+        | ConstantInput of SimpleGraph
+
     type StepType =
-        | InputStep
+        | Unassigned
+        | InputStep of InputType
         | ComputationStep
         | OutputStep
 
@@ -26,7 +43,8 @@ module Model =
 
     type WorkflowStep =
         { Id : Guid
-          State : WorkflowStepState }
+          State : WorkflowStepState
+          StepType : StepType }
 
     type WorkflowTree =
         | Empty
@@ -301,7 +319,8 @@ module Behaviour =
 
     let newWorkflowStep () =
         { Id = Guid.NewGuid ()
-          State = Prestine }
+          State = Prestine
+          StepType = Unassigned }
 
     let handleWorkflowCommand (us : UserSpace) (command : WorkflowCommand) =
         match command with

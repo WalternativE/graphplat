@@ -8,6 +8,8 @@ open System
 open Fulma
 open Fulma.Extensions
 open Elmish
+open Fable.Core.JsInterop
+
 open ApiClient
 open Domain
 
@@ -156,7 +158,20 @@ let viewQuickViewBody model dispatch =
         Quickview.body []
             [ Content.content [ Content.CustomClass "quickview-content--with-padding" ]
                 [ R.str <| sprintf "Editing step %O" step.Id
-                  R.br [] ] ]
+                  R.br []
+                  R.form []
+                    [ Field.div []
+                        [ Label.label [] [ R.str "Type" ]
+                          Select.select []
+                            [ R.select
+                                [ RP.DefaultValue "Unassigned"
+                                  RP.OnChange (fun ev ->
+                                                let target = ev.target
+                                                B.console.log target?value) ]
+                                [ R.option [ RP.Value "Unassigned" ] [ R.str "Unassigned" ]
+                                  R.option [ RP.Value "Input" ] [ R.str "Input" ]
+                                  R.option [ RP.Value "Output" ] [ R.str "Ouput" ]
+                                  R.option [ RP.Value "Computation" ] [R.str "Computation" ] ] ] ] ] ] ]
 
 let viewWorkflowPane model dispatch =
     [ R.h1 [ RP.Class "is-size-3" ] [ R.str model.Workspace.Value.Name ]

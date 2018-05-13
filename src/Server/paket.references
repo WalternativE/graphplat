@@ -6,4 +6,6 @@ group Server
 
     Marten.FSharp
 
+    Aether
+
     Microsoft.DotNet.Watcher.Tools

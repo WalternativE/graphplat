@@ -9,6 +9,8 @@ group Server
     nuget Marten.FSharp 0.3.0
     nuget Npgsql
 
+    nuget Aether
+
     clitool Microsoft.DotNet.Watcher.Tools
 
 group Client

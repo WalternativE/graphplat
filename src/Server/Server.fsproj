@@ -12,5 +12,10 @@
     <Compile Include="Api.fs" />
     <Compile Include="Server.fs" />
   </ItemGroup>
+  <ItemGroup>
+    <Reference Include="FSharp.FGL">
+      <HintPath>libs\FSharp.FGL\FSharp.FGL.dll</HintPath>
+    </Reference>
+  </ItemGroup>
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>
