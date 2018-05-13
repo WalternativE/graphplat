@@ -3,47 +3,25 @@ open System
 type WorkflowStepState =
     | Prestine
 
+type WorkflowStepId = Guid
+
 type WorkflowStep =
     { Id : Guid
       State : WorkflowStepState }
 
-type Workflow =
+type WorkflowTree =
     | Empty
-    | Node of WorkflowStep * Workflow list
+    | Node of WorkflowStep * WorkflowTree list
 
-let toNodesAndEdges (wf : Workflow) =
-    let rec toNodesAndEdges current source wf =
-        match source, wf with
-        | None, Empty -> [], []
-        | Some _, Empty -> [], []
-        | Some s, Node (wsStep, wfs) ->
-            let (nodes, edges) = current
-            let nextSource = string wsStep.Id |> Some
-            let edge = (s, string wsStep.Id)
-            let cns = (string wsStep.Id)::nodes
-            let edgs = edge::edges
+type WorkflowId = Guid
+type WorkspaceId = Guid
 
+type Workflow =
+    { Id: WorkflowId
+      AssignedWorkspace : WorkspaceId
+      WorkflowTree : WorkflowTree }
 
-            wfs
-            |> List.map (fun workflow -> toNodesAndEdges (cns, edgs) nextSource workflow)
-            |> List.fold (fun (cnn, cee) (nn, ee) -> cnn@nn, cee@ee ) (cns, edgs)
-
-
-        | None, Node (wsStep, wfs) ->
-            let (nodes, edges) = current
-            let nextSource = string wsStep.Id |> Some
-            let cns = (string wsStep.Id)::nodes
-
-            wfs
-            |> List.map (fun workflow -> toNodesAndEdges (cns, edges) nextSource workflow)
-            |> List.fold (fun (cnn, cee) (nn, ee) -> cnn@nn, cee@ee ) (cns, edges)
-
-    let (nodes, edges) =
-        toNodesAndEdges ([], []) None wf
-
-    Set.ofList nodes, edges
-
-let iterWorkflow (f : WorkflowStep -> unit) (workflow : Workflow) =
+let iterWorkflowSteps (f : WorkflowStep -> unit) (workflow : WorkflowTree) =
     let rec iterWorkflow workflow =
         match workflow with
         | Empty -> ()
@@ -53,7 +31,40 @@ let iterWorkflow (f : WorkflowStep -> unit) (workflow : Workflow) =
 
     iterWorkflow workflow
 
-let addStep (parentStep : WorkflowStep) (flowToAdd : Workflow) (baseWorkflow : Workflow) =
+let mapWorkflowSteps (f : WorkflowStep -> WorkflowStep) (workflow : WorkflowTree) =
+    let rec mapWorkflowSteps workflow =
+        match workflow with
+        | Empty -> Empty
+        | Node (step, wfs) ->
+            Node (f step, wfs |> List.map mapWorkflowSteps)
+
+    mapWorkflowSteps workflow
+
+// TODO this gets the first occurence of a workflow step - there could be more than one 'equal steps' to get all paths collected
+// I might get rid of this unwanted behaviour with a collector component which terminates a path and messages a waiting node
+// have to ponder this
+let tryFindWorkflowStep (predicate : WorkflowStep -> bool) (workflow : WorkflowTree) =
+    let rec tryFindWorkflowStep workflow =
+        match workflow with
+        | Empty -> None
+        | Node (step, []) ->
+            if predicate step then
+                Some step
+            else
+                None
+        | Node (step, wfs) ->
+            if predicate step then
+                Some step
+            else
+                wfs
+                |> List.map (fun wf -> tryFindWorkflowStep wf)
+                |> List.filter Option.isSome
+                |> List.map Option.get
+                |> List.tryHead
+
+    tryFindWorkflowStep workflow
+
+let addStep (parentStep : WorkflowStep) (flowToAdd : WorkflowTree) (baseWorkflow : WorkflowTree) =
     let rec addStep parentStep flowToAdd baseWorkflow =
         match baseWorkflow with
         | Empty -> Empty
@@ -64,6 +75,14 @@ let addStep (parentStep : WorkflowStep) (flowToAdd : Workflow) (baseWorkflow : W
 
     addStep parentStep flowToAdd baseWorkflow
 
+let newWorkflow (wsId : WorkspaceId) =
+    { Id = Guid.NewGuid ()
+      AssignedWorkspace = wsId
+      WorkflowTree = Empty }
+
+let newWorkflowStep () =
+    { Id = Guid.NewGuid ()
+      State = Prestine }
 let baseStepId = Guid.Parse "8c3e1670-5f32-4844-bf81-ef19c0f268ad"
 let baseStep = { Id = baseStepId; State = Prestine }
 let wf = Node (baseStep, [])
@@ -74,4 +93,5 @@ let wf2 = Node (secondStep, [])
 
 let compoundWf = addStep baseStep wf2 wf
 
-let (nodes, edges) = toNodesAndEdges compoundWf
+let bogusId = Guid.Parse "b089447a-5044-47df-b04f-447f499ff5f4"
+let foundNode = tryFindWorkflowStep (fun step -> step.Id = bogusId) compoundWf

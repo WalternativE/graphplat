@@ -23,13 +23,13 @@ type Model =
 
 type ExtMsg =
     | NoOp
-    | NodeSelected
+    | NodeSelected of WorkflowStepId
     | AddStep of AddStep
 
 type Msg =
     | ContainerAvailable of Fable.Import.Browser.HTMLElement * DispatchFunc
     | ContainerUnavailable
-    | NodeTapped
+    | NodeTapped of WorkflowStepId
     | CreateFirstNodeClicked
 and
     DispatchFunc = Msg -> unit
@@ -112,8 +112,9 @@ let createGraph (ids : Set<string>) (edges : (string * string) list) =
     elsDef
 
 let handleNodeTap (dispatch : DispatchFunc) (eo : Cytoscape.EventObject) =
-    B.console.log eo
-    dispatch NodeTapped
+    match eo.target with
+    | None -> ()
+    | Some t -> !!t?id() |> NodeTapped |> dispatch
 
 let graphWorkflowTree (wft : WorkflowTree) =
     wft
@@ -139,8 +140,8 @@ let update (msg : Msg) (model : Model) =
         { model with Core = None }, Cmd.none, NoOp
     | ContainerUnavailable ->
         { model with Core = None }, Cmd.none, NoOp
-    | NodeTapped ->
-        { model with Core = None }, Cmd.none, NodeSelected
+    | NodeTapped wfsId ->
+        { model with Core = None }, Cmd.none, NodeSelected wfsId
     | CreateFirstNodeClicked ->
         let step = Behaviour.newWorkflowStep ()
         let initialTree = Node (step, [])

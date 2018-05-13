@@ -13,8 +13,16 @@ module Model =
           Name : UserName
           Email : Email }
 
+    type StepType =
+        | InputStep
+        | ComputationStep
+        | OutputStep
+
     type WorkflowStepState =
         | Prestine
+        | Fixed
+
+    type WorkflowStepId = Guid
 
     type WorkflowStep =
         { Id : Guid
@@ -232,7 +240,7 @@ module Behaviour =
           User = user
           Workspaces = [] }
 
-    let iterWorkflowTree (f : WorkflowStep -> unit) (workflow : WorkflowTree) =
+    let iterWorkflowSteps (f : WorkflowStep -> unit) (workflow : WorkflowTree) =
         let rec iterWorkflow workflow =
             match workflow with
             | Empty -> ()
@@ -241,6 +249,39 @@ module Behaviour =
                 wfs |> List.iter iterWorkflow
 
         iterWorkflow workflow
+
+    let mapWorkflowSteps (f : WorkflowStep -> WorkflowStep) (workflow : WorkflowTree) =
+        let rec mapWorkflowSteps workflow =
+            match workflow with
+            | Empty -> Empty
+            | Node (step, wfs) ->
+                Node (f step, wfs |> List.map mapWorkflowSteps)
+
+        mapWorkflowSteps workflow
+
+    // TODO this gets the first occurence of a workflow step - there could be more than one 'equal steps' to get all paths collected
+    // I might get rid of this unwanted behaviour with a collector component which terminates a path and messages a waiting node
+    // have to ponder this
+    let tryFindWorkflowStep (predicate : WorkflowStep -> bool) (workflow : WorkflowTree) =
+        let rec tryFindWorkflowStep workflow =
+            match workflow with
+            | Empty -> None
+            | Node (step, []) ->
+                if predicate step then
+                    Some step
+                else
+                    None
+            | Node (step, wfs) ->
+                if predicate step then
+                    Some step
+                else
+                    wfs
+                    |> List.map (fun wf -> tryFindWorkflowStep wf)
+                    |> List.filter Option.isSome
+                    |> List.map Option.get
+                    |> List.tryHead
+
+        tryFindWorkflowStep workflow
 
     let addStep (parentStep : WorkflowStep) (flowToAdd : WorkflowTree) (baseWorkflow : WorkflowTree) =
         let rec addStep parentStep flowToAdd baseWorkflow =

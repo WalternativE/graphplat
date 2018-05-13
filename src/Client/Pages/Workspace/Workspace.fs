@@ -9,6 +9,7 @@ open Fulma
 open Fulma.Extensions
 open Elmish
 open ApiClient
+open Domain
 
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
@@ -20,7 +21,8 @@ type PageState =
     | InitialisationFailed
 
 type QuickViewModel =
-    { IsActive : bool }
+    { IsActive : bool
+      Step : WorkflowStep option }
 
 type Model =
     { UserData : UserData
@@ -41,12 +43,12 @@ type Message =
     | FetchError of exn
     | GraphMsg of Graph.Msg
     | HideQuickView
-    | ShowQuickView
+    | ShowQuickView of WorkflowStep option
     | AddStep of AddStep
     | StepAdded of Workflow
 
 let init (userData : UserData) (wId : Guid) =
-    let qv = { IsActive = false }
+    let qv = { IsActive = false; Step = None }
 
     { UserData = userData
       WorkspaceId = wId
@@ -106,8 +108,12 @@ let update (msg : Message) (model : Model) =
             let appCmd =
                 match ext with
                 | Graph.NoOp -> Cmd.none
-                | Graph.NodeSelected ->
-                    Cmd.ofMsg ShowQuickView
+                | Graph.NodeSelected wfsId ->
+                    let step =
+                        graphModel.Workflow
+                        |> Behaviour.tryFindWorkflowStep (fun step -> step.Id = wfsId)
+                    B.console.log wfsId
+                    ShowQuickView step |> Cmd.ofMsg
                 | Graph.AddStep addStep ->
                     Cmd.ofMsg (AddStep addStep)
 
@@ -115,8 +121,8 @@ let update (msg : Message) (model : Model) =
         | None -> model, Cmd.none, NoOp
     | HideQuickView ->
         { model with QuickViewModel = { model.QuickViewModel with IsActive = false } }, Cmd.none, NoOp
-    | ShowQuickView ->
-        { model with QuickViewModel = { model.QuickViewModel with IsActive = true } }, Cmd.none, NoOp
+    | ShowQuickView step->
+        { model with QuickViewModel = { model.QuickViewModel with IsActive = true; Step = step } }, Cmd.none, NoOp
     | AddStep addStep ->
         match model.Workspace with
         | None -> model, Cmd.none, NoOp
@@ -140,6 +146,18 @@ let viewGraphPanel model dispatch =
         [ Content.content []
             [ Graph.view gm (GraphMsg >> dispatch) ] ]
 
+let viewQuickViewBody model dispatch =
+    match model.QuickViewModel.Step with
+    | None ->
+        Quickview.body []
+            [ Content.content [ Content.CustomClass "quickview-content--with-padding" ]
+                [ R.str "The step could not be found. Please try to refresh you browser :(" ] ]
+    | Some step ->
+        Quickview.body []
+            [ Content.content [ Content.CustomClass "quickview-content--with-padding" ]
+                [ R.str <| sprintf "Editing step %O" step.Id
+                  R.br [] ] ]
+
 let viewWorkflowPane model dispatch =
     [ R.h1 [ RP.Class "is-size-3" ] [ R.str model.Workspace.Value.Name ]
       R.hr []
@@ -147,9 +165,9 @@ let viewWorkflowPane model dispatch =
         (viewGraphPanel model dispatch)
       Quickview.quickview [ Quickview.IsActive model.QuickViewModel.IsActive ]
         [ Quickview.header []
-            [ Quickview.title [] [ R.str "Testing" ]
+            [ Quickview.title [] [ R.str "Edit Step" ]
               Delete.delete [ Delete.OnClick (fun _ -> dispatch HideQuickView) ] [] ]
-          Quickview.body [] [ R.str "Blub..." ]
+          (viewQuickViewBody model dispatch)
           Quickview.footer []
             [ Button.button [ Button.OnClick (fun _ -> dispatch HideQuickView) ]
                 [ R.str "Close" ] ] ] ]
