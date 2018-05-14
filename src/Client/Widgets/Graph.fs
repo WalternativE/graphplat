@@ -15,11 +15,13 @@ module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
 module C = Cytoscape
 module B = Fable.Import.Browser
+module IR = Fable.Import.React
 
 type Model =
     { Id : string
       Core : C.Cytoscape.Core option
-      Workflow : WorkflowTree }
+      Workflow : WorkflowTree
+      RerenderHook : (unit -> unit) option }
 
 type ExtMsg =
     | NoOp
@@ -31,6 +33,10 @@ type Msg =
     | ContainerUnavailable
     | NodeTapped of WorkflowStepId
     | CreateFirstNodeClicked
+    | ForceSync of WorkflowTree
+    | RegisterRerenderHook of (unit -> unit)
+    | ForceRerender
+    | ReinitCore of Fable.Import.Browser.HTMLElement * DispatchFunc
 and
     DispatchFunc = Msg -> unit
 
@@ -39,7 +45,8 @@ let init (wft : WorkflowTree) =
         let guid = Guid.NewGuid()
         { Id = guid.ToString()
           Core = None
-          Workflow = wft }
+          Workflow = wft
+          RerenderHook = None }
     model, Cmd.none
 
 module B = Fable.Import.Browser
@@ -119,23 +126,26 @@ let graphWorkflowTree (wft : WorkflowTree) =
     |> toNodesAndEdges
     |> (fun (nodes, edges) -> createGraph nodes edges)
 
+let initCytoCore (wf : WorkflowTree) el dispatch =
+    let graph =
+        wf
+        |> graphWorkflowTree
+
+    let opts = createEmpty<C.Cytoscape.CytoscapeOptions>
+    opts.container <- (Some el)
+    opts.elements <- Some !^graph
+
+    let core = C.cytoscape opts
+
+    let handler : C.Cytoscape.EventHandler = handleNodeTap dispatch
+    core.on ("tap", "node", handler)
+    core
+
 let update (msg : Msg) (model : Model) =
     match msg with
     | ContainerAvailable (el, dispatch) ->
-        let graph =
-            model.Workflow
-            |> graphWorkflowTree
-
-        let opts = createEmpty<C.Cytoscape.CytoscapeOptions>
-        opts.container <- (Some el)
-        opts.elements <- Some !^graph
-
-        let core = C.cytoscape opts
-
-        let handler : C.Cytoscape.EventHandler = handleNodeTap dispatch
-        core.on ("tap", "node", handler)
-
-        { model with Core = None }, Cmd.none, NoOp
+        let core = initCytoCore model.Workflow el dispatch
+        { model with Core = Some core }, Cmd.none, NoOp
     | ContainerUnavailable ->
         { model with Core = None }, Cmd.none, NoOp
     | NodeTapped wfsId ->
@@ -146,8 +156,20 @@ let update (msg : Msg) (model : Model) =
 
         let addFirst = AddFirst step
         { model with Workflow = initialTree }, Cmd.none, AddStep addFirst
-
-module IR = Fable.Import.React
+    | ForceSync workflowTree  ->
+        { model with Workflow = workflowTree }, Cmd.ofMsg ForceRerender, NoOp
+    | RegisterRerenderHook f ->
+        { model with RerenderHook = Some f}, Cmd.none, NoOp
+    | ForceRerender ->
+        match model.RerenderHook with
+        | None -> ()
+        | Some f ->
+            B.console.log "Force rerender"
+            f ()
+        model, Cmd.none, NoOp
+    | ReinitCore (el, dispatch) ->
+        let core = initCytoCore model.Workflow el dispatch
+        { model with Core = Some core}, Cmd.none, NoOp
 
 type [<Pojo>] GraphProps =
     { Id : string
@@ -156,8 +178,13 @@ type [<Pojo>] GraphProps =
 type GraphComponent(initialProps) =
     inherit IR.Component<GraphProps, obj>(initialProps)
 
+    member this.reinitCore() =
+        let el = B.document.getElementById this.props.Id
+        ReinitCore (el, this.props.Dispatch) |> this.props.Dispatch
+
     override this.componentDidMount() =
         let el = B.document.getElementById this.props.Id
+        RegisterRerenderHook this.reinitCore |> this.props.Dispatch
         ContainerAvailable (el, this.props.Dispatch) |> this.props.Dispatch
 
     override this.render () =

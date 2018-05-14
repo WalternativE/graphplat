@@ -221,6 +221,30 @@ let handleAddStep (nxt : HttpFunc) (ctx : HttpContext) = task {
         return! resp nxt ctx
 }
 
+let handleChangeStep (nxt : HttpFunc) (ctx : HttpContext) = task {
+    let! model = ctx.BindJsonAsync<WorkflowCommand>()
+    let user = getUser ctx
+
+    match model with
+    | ChangeStep _ ->
+        let evt =
+            model
+            |> WorkflowCommand
+            |> commandHandler user.Id
+
+        match evt with
+        | WorkflowEvent (WorkflowStepChanged wf) ->
+            let resp = setStatusCode 200 >=> json wf
+            return! resp nxt ctx
+        | WorkflowEvent (WorkflowError e) ->
+            let resp = setStatusCode 400 >=>  text (workflowErrorToString e)
+            return! resp nxt ctx
+        | _ -> return! handleUnexpectedBehavior nxt ctx
+    | _ ->
+        let resp = setStatusCode 400 >=> text "Expected ChangeStep command but received something else."
+        return! resp nxt ctx
+}
+
 let securedApiRouter = scope {
     pipe_through (Auth.requireAuthentication JWT)
     get "/users/current" getCurrentUser
@@ -230,12 +254,13 @@ let securedApiRouter = scope {
     getf "/workspaces/%O" getWorkspace
 
     // TODO currently delete does not work in Saturn
-    // change when https://github.com/SaturnFramework/Saturn/pull/53 is merged
+    // change when https://github.com/SaturnFramework/Saturn/pull/53 is merged and updated on nuget
     postf "/workspaces/%O" deleteWorkSpace
 
     getf "/workflows/%O" getWorkflow
     post "/workflows" createWorkflow
-    post "/workflows/add-step" handleAddStep }
+    post "/workflows/add-step" handleAddStep
+    post "/workflows/change-step" handleChangeStep }
 
 let apiRouter = scope {
     pipe_through (pipeline { set_header "x-pipeline-type" "Api" })

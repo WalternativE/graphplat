@@ -27,6 +27,7 @@ module Model =
           Edges : SimpleEdge list }
 
     type InputType =
+        | EmptyInput
         | ConstantInput of SimpleGraph
 
     type StepType =
@@ -83,12 +84,14 @@ module Events =
         | WorkflowAlreadyExists of Workflow
         | NoWorkspaceForWorkflow of Workflow
         | StepCouldNotBeAdded of WorkflowStep
+        | StepCouldNotBeChanged of WorkflowStep
 
     let workflowErrorToString (e : WorkflowError) =
         match e with
         | WorkflowAlreadyExists wf -> sprintf "The workflow with the id %O already exists" wf.Id
         | NoWorkspaceForWorkflow wf -> sprintf "The workspace %O could not be found. It was not possible to add workflow %O to it." wf.AssignedWorkspace wf.Id
         | StepCouldNotBeAdded wfs -> sprintf "The workflowstep %O could not be added." wfs.Id
+        | StepCouldNotBeChanged wfs -> sprintf "The workflowstep %O could not be changed." wfs.Id
 
     type Error =
         | AlreadyExists of UserSpace
@@ -107,6 +110,7 @@ module Events =
         | WorkflowCreated of Workflow
         | WorkflowError of WorkflowError
         | WorkflowStepAdded of Workflow
+        | WorkflowStepChanged of Workflow
 
     type Event =
         | UserSpaceCreated of UserSpace
@@ -159,6 +163,9 @@ module Commands =
     type WorkflowCommand =
         | CreateWorkflow of Workflow
         | AddStep of Workflow * AddStep
+        // this is very broad - would be better to have more granular commands
+        // still workable but more granular cmds seem to contain more infos (just an idea)
+        | ChangeStep of WorkflowStep
 
     type SpacesCommand =
         | CreateUserSpace of User
@@ -192,6 +199,8 @@ module Projection =
             workflow
         | WorkflowStepAdded wf ->
             wf
+        | WorkflowStepChanged wf ->
+            wf
         | WorkflowError _ ->
             workflow
 
@@ -207,15 +216,15 @@ module Projection =
                                     { ws with Workflow = Some wf}
                                 else ws )
             { userSpace with Workspaces = wss }
-        | WorkflowStepAdded wft ->
+        | WorkflowStepAdded wf | WorkflowStepChanged wf ->
             let wss =
                 userSpace.Workspaces
                 |> List.map (fun ws ->
                                 { ws with
                                     Workflow =
                                         ws.Workflow
-                                        |> Option.map (fun wf ->
-                                                        if wf.Id = wft.Id then wft else wf ) } )
+                                        |> Option.map (fun workflow ->
+                                                        if workflow.Id = wf.Id then wf else workflow ) } )
             { userSpace with Workspaces = wss }
         | WorkflowError _ ->
             userSpace
@@ -302,13 +311,13 @@ module Behaviour =
         tryFindWorkflowStep workflow
 
     let addStep (parentStep : WorkflowStep) (flowToAdd : WorkflowTree) (baseWorkflow : WorkflowTree) =
-        let rec addStep parentStep flowToAdd baseWorkflow =
+        let rec addStep (parentStep : WorkflowStep) flowToAdd baseWorkflow =
             match baseWorkflow with
             | Empty -> Empty
-            | Node (step, workflows) when step = parentStep ->
+            | Node (step, workflows) when step.Id = parentStep.Id ->
                 Node (step, flowToAdd::workflows)
             | Node (step, workflows) ->
-                Node (step, workflows |> List.map (addStep step flowToAdd))
+                Node (step, workflows |> List.map (addStep parentStep flowToAdd))
 
         addStep parentStep flowToAdd baseWorkflow
 
@@ -357,6 +366,26 @@ module Behaviour =
                     WorkflowStepAdded { baseWf with WorkflowTree = wfToAdd }
                 else
                     StepCouldNotBeAdded stepToAdd |> WorkflowError
+        | ChangeStep wfs ->
+            let flows =
+                us.Workspaces
+                |> List.map (fun ws ->
+                                ws.Workflow
+                                |> Option.bind (fun wf ->
+                                                    wf.WorkflowTree
+                                                    |> tryFindWorkflowStep (fun step -> step.Id = wfs.Id)
+                                                    |> Option.map (fun _ -> wf)))
+                |> List.filter Option.isSome
+                |> List.map Option.get
+                |> List.tryHead
+
+            match flows with
+            | None -> StepCouldNotBeChanged wfs |> WorkflowError
+            | Some wf ->
+                wf.WorkflowTree
+                |> mapWorkflowSteps (fun step -> if step.Id = wfs.Id then wfs else step)
+                |> (fun wft -> { wf with WorkflowTree = wft})
+                |> WorkflowStepChanged
 
     let handleCommand (events : Event list) (command : SpacesCommand) =
         match command with

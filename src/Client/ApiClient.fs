@@ -125,7 +125,7 @@ let createWorkflow (args : Workflow * JWT) = promise {
 }
 
 type AddStepPayload = Workflow * AddStep
-let addWorkflowStep (args : AddStepPayload * JWT ) = promise {
+let addWorkflowStep (args : AddStepPayload * JWT) = promise {
     let (payload, token) = args
 
     let cmd = AddStep payload
@@ -135,6 +135,22 @@ let addWorkflowStep (args : AddStepPayload * JWT ) = promise {
 
     try
         return! Fetch.fetchAs<Workflow> "/api/secured/workflows/add-step" props
+    with e ->
+        return e.Message
+        |> extractFetchError
+        |> failwithf "%s"
+}
+
+let changeWorkflowStep (args : WorkflowStep * JWT) = promise {
+    let (wfs, token) = args
+
+    let cmd = ChangeStep wfs
+    let props =
+        standardPostProps token
+        |> addBody (toJson cmd)
+
+    try
+        return! Fetch.fetchAs<Workflow> "/api/secured/workflows/change-step" props
     with e ->
         return e.Message
         |> extractFetchError

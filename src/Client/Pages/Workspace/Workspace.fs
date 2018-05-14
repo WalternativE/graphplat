@@ -24,7 +24,8 @@ type PageState =
 
 type QuickViewModel =
     { IsActive : bool
-      Step : WorkflowStep option }
+      Step : WorkflowStep option
+      EditStepState : WorkflowStep option }
 
 type Model =
     { UserData : UserData
@@ -48,9 +49,13 @@ type Message =
     | ShowQuickView of WorkflowStep option
     | AddStep of AddStep
     | StepAdded of Workflow
+    | StageStepEdit of WorkflowStep
+    | ResetStepEdits
+    | SaveWorkflowStepClicked of WorkflowStep
+    | WorkflowStepChanged of Workflow
 
 let init (userData : UserData) (wId : Guid) =
-    let qv = { IsActive = false; Step = None }
+    let qv = { IsActive = false; Step = None; EditStepState = None }
 
     { UserData = userData
       WorkspaceId = wId
@@ -67,6 +72,9 @@ let createWorkflowCmd workflow token =
 
 let addStepCmd workflow addStep token =
     Cmd.ofPromise addWorkflowStep ((workflow, addStep), token) StepAdded FetchError
+
+let changeStepCmd step token =
+    Cmd.ofPromise changeWorkflowStep (step, token) WorkflowStepChanged FetchError
 
 let update (msg : Message) (model : Model) =
     match msg with
@@ -90,10 +98,12 @@ let update (msg : Message) (model : Model) =
             Workspace = Some ws
             GraphModel = graphModel }, cmd, NoOp
     | WorkflowCreated wf ->
+        let gm, gcmd = Graph.init wf.WorkflowTree
+
         let ws =
             model.Workspace
             |> Option.map (fun ws -> { ws with Workflow = Some wf })
-        { model with Workspace = ws }, Cmd.none, NoOp
+        { model with Workspace = ws; GraphModel = Some gm }, Cmd.map GraphMsg gcmd, NoOp
     | FetchError e ->
         if e.Message = "401" then
             model, Cmd.none, AuthFailed
@@ -122,9 +132,15 @@ let update (msg : Message) (model : Model) =
             { model with GraphModel = Some m }, Cmd.batch [ Cmd.map GraphMsg cmd; appCmd ], NoOp
         | None -> model, Cmd.none, NoOp
     | HideQuickView ->
-        { model with QuickViewModel = { model.QuickViewModel with IsActive = false } }, Cmd.none, NoOp
+        { model with
+            QuickViewModel =
+                { model.QuickViewModel with
+                    IsActive = false; Step = None; EditStepState = None } }, Cmd.none, NoOp
     | ShowQuickView step->
-        { model with QuickViewModel = { model.QuickViewModel with IsActive = true; Step = step } }, Cmd.none, NoOp
+        { model with
+            QuickViewModel =
+                { model.QuickViewModel with
+                    IsActive = true; Step = step; EditStepState = step } }, Cmd.none, NoOp
     | AddStep addStep ->
         match model.Workspace with
         | None -> model, Cmd.none, NoOp
@@ -133,11 +149,38 @@ let update (msg : Message) (model : Model) =
             | None -> model, Cmd.none, NoOp
             | Some wf -> model, addStepCmd wf addStep model.UserData.Token, NoOp
     | StepAdded wf ->
-        // TODO the graph component keeps its changes in memory - I might want to sync here
+        let msg =
+            Graph.ForceSync wf.WorkflowTree
+            |> GraphMsg
+            |> Cmd.ofMsg
+
         { model with
             Workspace =
                 model.Workspace
-                |> Option.map (fun ws -> { ws with Workflow = Some wf }) }, Cmd.none, NoOp
+                |> Option.map (fun ws -> { ws with Workflow = Some wf })}, msg, NoOp
+    | StageStepEdit step ->
+        { model with
+            QuickViewModel =
+                { model.QuickViewModel with
+                    EditStepState = Some step}}, Cmd.none, NoOp
+    | ResetStepEdits ->
+        { model with
+            QuickViewModel =
+                { model.QuickViewModel with
+                    EditStepState = model.QuickViewModel.Step }}, Cmd.none, NoOp
+    | SaveWorkflowStepClicked step ->
+        model, changeStepCmd step model.UserData.Token, NoOp
+    | WorkflowStepChanged wf ->
+        let msg =
+            Graph.ForceSync wf.WorkflowTree
+            |> GraphMsg
+            |> Cmd.ofMsg
+
+        let ws =
+            model.Workspace
+            |> Option.map (fun ws -> { ws with Workflow = Some wf})
+        { model with Workspace = ws}, Cmd.batch [ msg; Cmd.ofMsg HideQuickView ], NoOp
+
 
 let viewGraphPanel model dispatch =
     match model.GraphModel with
@@ -148,30 +191,81 @@ let viewGraphPanel model dispatch =
         [ Content.content []
             [ Graph.view gm (GraphMsg >> dispatch) ] ]
 
+let labelFromStepType (st : StepType) =
+    match st with
+    | Unassigned -> "Unassigned"
+    | InputStep _ -> "Input"
+    | OutputStep -> "Output"
+    | ComputationStep -> "Computation"
+
+let stepTypeFromLabel (l : string) =
+    match l with
+    | "Input" -> EmptyInput |> InputStep
+    | "Output" -> OutputStep
+    | "Computation" -> ComputationStep
+    | _ -> Unassigned
+
+let viewStepTypeOptions (step : WorkflowStep) dispatch =
+    match step.StepType with
+    | Unassigned -> []
+    | InputStep _ -> []
+    | OutputStep -> []
+    | ComputationStep -> []
+
+let handleAddNewStep (step : WorkflowStep) (dispatch : Message -> unit) =
+    Behaviour.newWorkflowStep ()
+    |> (fun sta -> AddStepAfter (step, sta))
+    |> (fun adds ->  Message.AddStep adds )
+    |> dispatch
+
+let viewAddNode step dispatch =
+    match step.StepType with
+    | Unassigned -> []
+    | OutputStep -> []
+    | _ ->
+        [ Field.div []
+            [ Control.div []
+                [ Button.button [ Button.OnClick (fun _ -> handleAddNewStep step dispatch) ]
+                    [R.str "Attach new step" ] ] ] ]
+
 let viewQuickViewBody model dispatch =
-    match model.QuickViewModel.Step with
-    | None ->
+    match model.QuickViewModel.Step, model.QuickViewModel.EditStepState with
+    | Some baseStep, Some editStep ->
         Quickview.body []
             [ Content.content [ Content.CustomClass "quickview-content--with-padding" ]
-                [ R.str "The step could not be found. Please try to refresh you browser :(" ] ]
-    | Some step ->
-        Quickview.body []
-            [ Content.content [ Content.CustomClass "quickview-content--with-padding" ]
-                [ R.str <| sprintf "Editing step %O" step.Id
+                [ R.str <| sprintf "Editing step %O" editStep.Id
                   R.br []
                   R.form []
-                    [ Field.div []
+                    [ yield Field.div []
                         [ Label.label [] [ R.str "Type" ]
                           Select.select []
                             [ R.select
-                                [ RP.DefaultValue "Unassigned"
+                                [ RP.Value (labelFromStepType editStep.StepType)
                                   RP.OnChange (fun ev ->
-                                                let target = ev.target
-                                                B.console.log target?value) ]
-                                [ R.option [ RP.Value "Unassigned" ] [ R.str "Unassigned" ]
-                                  R.option [ RP.Value "Input" ] [ R.str "Input" ]
-                                  R.option [ RP.Value "Output" ] [ R.str "Ouput" ]
-                                  R.option [ RP.Value "Computation" ] [R.str "Computation" ] ] ] ] ] ] ]
+                                                let newType = ev.target?value |> string |> stepTypeFromLabel
+                                                StageStepEdit { editStep with StepType = newType} |> dispatch ) ]
+                                [ R.option [ RP.Value (labelFromStepType Unassigned) ] [ R.str "Unassigned" ]
+                                  R.option [ RP.Value (InputStep EmptyInput |> labelFromStepType) ] [ R.str "Input" ]
+                                  R.option [ RP.Value (labelFromStepType OutputStep) ] [ R.str "Ouput" ]
+                                  R.option [ RP.Value (labelFromStepType ComputationStep) ] [R.str "Computation" ] ] ] ]
+                      yield! viewStepTypeOptions editStep dispatch
+                      yield Field.div [ Field.IsGrouped ]
+                        [ Control.div []
+                            [ Button.button
+                                [ Button.Disabled (baseStep = editStep)
+                                  Button.Color Color.IsPrimary
+                                  Button.OnClick (fun _ -> SaveWorkflowStepClicked editStep |> dispatch) ]
+                                [ R.str "Save" ] ]
+                          Control.div []
+                            [ Button.button
+                                [ Button.Disabled (baseStep = editStep)
+                                  Button.OnClick (fun _ -> dispatch ResetStepEdits) ]
+                                [ R.str "Cancel" ] ] ]
+                      yield! viewAddNode baseStep dispatch ] ] ]
+    | _, _ ->
+        Quickview.body []
+            [ Content.content [ Content.CustomClass "quickview-content--with-padding" ]
+                [ R.str "The step could not be found. Please try to refresh you browser :(" ] ]
 
 let viewWorkflowPane model dispatch =
     [ R.h1 [ RP.Class "is-size-3" ] [ R.str model.Workspace.Value.Name ]
