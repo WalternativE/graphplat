@@ -277,6 +277,16 @@ module Behaviour =
 
         iterWorkflow workflow
 
+    let iterWorkflowTree (f : WorkflowTree -> unit) (workflow : WorkflowTree) =
+        let rec iterWorkflowTree workflow =
+            match workflow with
+            | Empty -> ()
+            | Node (_, tree) as wft ->
+                f wft
+                tree |> List.iter iterWorkflowTree
+
+        iterWorkflowTree workflow
+
     let mapWorkflowSteps (f : WorkflowStep -> WorkflowStep) (workflow : WorkflowTree) =
         let rec mapWorkflowSteps workflow =
             match workflow with

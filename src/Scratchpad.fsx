@@ -5,6 +5,7 @@ open System
 open Domain
 open Domain.Model
 open Domain.Commands
+open System.Net
 
 let userGuid = Guid.Parse "33541660-08a9-4faa-b44f-65d2e23294be"
 
@@ -73,3 +74,61 @@ let step3 = Behaviour.newWorkflowStep ()
 let wft4 = Node (step3, [])
 
 let wft5 = Behaviour.addStep step2 wft4 wft3
+
+type Agent<'T> = MailboxProcessor<'T>
+
+type WorkflowExecutorMsg =
+    | Prepare of Workflow * AsyncReplyChannel<string option>
+    | RegisterWorker of WorkflowTree
+    | UnregisterWorker of Guid
+
+type WorkerMsg =
+    | WorkStep of AsyncReplyChannel<unit>
+
+type ExecutorAgent() =
+
+    let eventSrc = new Event<_>()
+
+    let agent = Agent.Start(fun agent ->
+
+        let rec prepare workers =
+            agent.Scan (fun msg ->
+                match msg with
+                | Prepare (wf, reply) -> Some <| async {
+                    wf.WorkflowTree
+                    |> Behaviour.iterWorkflowTree (fun wft -> agent.Post <| RegisterWorker wft)
+                    return! execute workers }
+                | _ -> None
+            )
+        and execute workers = async {
+            let! msg = agent.Receive()
+            match msg with
+            | RegisterWorker wft ->
+                printfn "I have %i workers right now" <| List.length workers
+                let worker = WorkerAgent (wft, agent)
+                return! execute (worker::workers)
+            | _ -> return! execute workers
+        }
+
+        prepare []
+    )
+
+    member this.Execute (wf : Workflow) =
+        agent.PostAndAsyncReply (fun ch -> Prepare (wf, ch))
+and
+    WorkerAgent (wft : WorkflowTree, executorRef) =
+
+        let agent = Agent.Start(fun agent ->
+            let rec work () = async {
+                let! msg = agent.Receive ()
+                match msg with
+                | WorkStep (reply) -> return! work()
+            }
+
+            work ()
+        )
+
+let ex = ExecutorAgent ()
+
+let str = 
+    ex.Execute { wf with WorkflowTree = wft5 } |> Async.RunSynchronously
