@@ -36,15 +36,10 @@ module Model =
         | ComputationStep
         | OutputStep
 
-    type WorkflowStepState =
-        | Prestine
-        | Fixed
-
     type WorkflowStepId = Guid
 
     type WorkflowStep =
         { Id : Guid
-          State : WorkflowStepState
           StepType : StepType }
 
     type WorkflowTree =
@@ -338,7 +333,6 @@ module Behaviour =
 
     let newWorkflowStep () =
         { Id = Guid.NewGuid ()
-          State = Prestine
           StepType = Unassigned }
 
     let handleWorkflowCommand (us : UserSpace) (command : WorkflowCommand) =
