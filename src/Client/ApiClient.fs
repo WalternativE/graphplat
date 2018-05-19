@@ -156,3 +156,16 @@ let changeWorkflowStep (args : WorkflowStep * JWT) = promise {
         |> extractFetchError
         |> failwithf "%s"
 }
+
+let executeWorkflow (args: WorkflowId * JWT) = promise {
+    let (wfId, token) = args
+    let props = standardGetProps token
+    let url = sprintf "/api/secured/workflows/%O/execute" wfId
+
+    try
+        return! Fetch.fetchAs<LabeledOutput list> url props
+    with e ->
+        return e.Message
+        |> extractFetchError
+        |> failwithf "%s"
+}

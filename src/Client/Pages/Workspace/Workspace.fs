@@ -1,17 +1,21 @@
 module Workspace
 
-open Global
+open System
+
+open Fable.Core.JsInterop
+open Elmish
+
+open Fulma
+open Fulma.FontAwesome
+open Fulma.Extensions
+
+open Domain
 open Domain.Model
 open Domain.Commands
 
-open System
-open Fulma
-open Fulma.Extensions
-open Elmish
-open Fable.Core.JsInterop
-
+open Global
 open ApiClient
-open Domain
+open Shared
 
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
@@ -33,7 +37,8 @@ type Model =
       Workspace : Workspace option
       PageState : PageState
       GraphModel : Graph.Model option
-      QuickViewModel : QuickViewModel }
+      QuickViewModel : QuickViewModel
+      LastWorkflowOutput : LabeledOutput list option }
 
 type ExternalMessage =
     | NoOp
@@ -53,6 +58,8 @@ type Message =
     | ResetStepEdits
     | SaveWorkflowStepClicked of WorkflowStep
     | WorkflowStepChanged of Workflow
+    | ExecuteWorkflow of WorkflowId
+    | WorkflowExecuted of LabeledOutput list
 
 let init (userData : UserData) (wId : Guid) =
     let qv = { IsActive = false; Step = None; EditStepState = None }
@@ -62,7 +69,8 @@ let init (userData : UserData) (wId : Guid) =
       Workspace = None
       PageState = FreshlyOpened
       GraphModel = None
-      QuickViewModel = qv }, LookUpWorkspace wId |> Cmd.ofMsg
+      QuickViewModel = qv
+      LastWorkflowOutput = None }, LookUpWorkspace wId |> Cmd.ofMsg
 
 let getWorkspaceCmd wsId token =
     Cmd.ofPromise getWorkspace (wsId, token) WorkspaceFound FetchError
@@ -75,6 +83,9 @@ let addStepCmd workflow addStep token =
 
 let changeStepCmd step token =
     Cmd.ofPromise changeWorkflowStep (step, token) WorkflowStepChanged FetchError
+
+let executeWorkflowCmd wfId token =
+    Cmd.ofPromise executeWorkflow (wfId, token) WorkflowExecuted FetchError
 
 let update (msg : Message) (model : Model) =
     match msg with
@@ -180,6 +191,10 @@ let update (msg : Message) (model : Model) =
             model.Workspace
             |> Option.map (fun ws -> { ws with Workflow = Some wf})
         { model with Workspace = ws}, Cmd.batch [ msg; Cmd.ofMsg HideQuickView ], NoOp
+    | ExecuteWorkflow wfId ->
+        model, executeWorkflowCmd wfId model.UserData.Token, NoOp
+    | WorkflowExecuted wfOutputs ->
+        { model with LastWorkflowOutput = Some wfOutputs }, Cmd.none, NoOp
 
 
 let viewGraphPanel model dispatch =
@@ -188,28 +203,47 @@ let viewGraphPanel model dispatch =
         [ Content.content []
             [ R.str "Loading..." ] ]
     | Some gm ->
-        [ Content.content []
+        [ Button.button
+            [ Button.Color IsPrimary
+              Button.OnClick (fun _ ->
+                model.Workspace
+                |> Option.bind (fun ws -> ws.Workflow)
+                |> Option.iter (fun wf -> ExecuteWorkflow wf.Id |> dispatch) ) ]
+            [ Icon.faIcon [] [ Fa.icon Fa.I.Play ]
+              R.span [] [ R.str "Execute" ] ]
+          Content.content []
             [ Graph.view gm (GraphMsg >> dispatch) ] ]
 
 let labelFromStepType (st : StepType) =
     match st with
     | Unassigned -> "Unassigned"
     | InputStep _ -> "Input"
-    | OutputStep -> "Output"
+    | OutputStep _ -> "Output"
     | ComputationStep -> "Computation"
 
 let stepTypeFromLabel (l : string) =
     match l with
     | "Input" -> EmptyInput |> InputStep
-    | "Output" -> OutputStep
+    | "Output" -> OutputStep ""
     | "Computation" -> ComputationStep
     | _ -> Unassigned
 
 let viewStepTypeOptions (step : WorkflowStep) dispatch =
     match step.StepType with
     | Unassigned -> []
-    | InputStep _ -> []
-    | OutputStep -> []
+    | InputStep inputType ->
+        // TODO when I'm working on input repositories I have to make this do something
+        match inputType with
+        | InputType.EmptyInput -> [ Field.div [] [ R.str "Empty Input" ] ]
+        | InputType.ConstantInput -> [ Field.div [] [R.str "Constant Input"] ]
+    | OutputStep label ->
+        [ Field.div []
+            [ Label.label [] [ R.str "Output Label" ]
+              Input.text
+                [ Input.Value label
+                  Input.OnChange (fun ev ->
+                    let output = ev.target?value |> string |> OutputStep
+                    StageStepEdit { step with StepType = output } |> dispatch) ] ] ]
     | ComputationStep -> []
 
 let handleAddNewStep (step : WorkflowStep) (dispatch : Message -> unit) =
@@ -221,12 +255,38 @@ let handleAddNewStep (step : WorkflowStep) (dispatch : Message -> unit) =
 let viewAddNode step dispatch =
     match step.StepType with
     | Unassigned -> []
-    | OutputStep -> []
+    | OutputStep _ -> []
     | _ ->
         [ Field.div []
             [ Control.div []
                 [ Button.button [ Button.OnClick (fun _ -> handleAddNewStep step dispatch) ]
                     [R.str "Attach new step" ] ] ] ]
+
+let viewLastOutputDetails step model dispatch =
+    let unpackOutput (output : LabeledOutput) =
+        match output.Output with
+        | Unit -> R.str "Empty output"
+        | Scalar v -> sprintf "Scalar output of %f" v |> R.str
+        | Error m -> sprintf "Error output with message: %s" m |> R.str
+        | Graph g -> sprintf "Graph output" |> R.str
+
+    let fromOutputs (label : OutputLabel) (outputs : LabeledOutput list) =
+        outputs
+        |> List.filter (fun o -> o.Label = label )
+        |> List.map (fun o ->
+                R.div []
+                    [ unpackOutput o ] )
+
+    match model.LastWorkflowOutput with
+    | None -> []
+    | Some wfOutputs ->
+        match step.StepType with
+        | Unassigned -> []
+        | InputStep _ -> []
+        | ComputationStep -> []
+        | OutputStep label ->
+            [ yield R.hr []
+              yield! fromOutputs label wfOutputs ]
 
 let viewQuickViewBody model dispatch =
     match model.QuickViewModel.Step, model.QuickViewModel.EditStepState with
@@ -242,11 +302,11 @@ let viewQuickViewBody model dispatch =
                             [ R.select
                                 [ RP.Value (labelFromStepType editStep.StepType)
                                   RP.OnChange (fun ev ->
-                                                let newType = ev.target?value |> string |> stepTypeFromLabel
-                                                StageStepEdit { editStep with StepType = newType} |> dispatch ) ]
+                                      let newType = ev.target?value |> string |> stepTypeFromLabel
+                                      StageStepEdit { editStep with StepType = newType} |> dispatch ) ]
                                 [ R.option [ RP.Value (labelFromStepType Unassigned) ] [ R.str "Unassigned" ]
                                   R.option [ RP.Value (InputStep EmptyInput |> labelFromStepType) ] [ R.str "Input" ]
-                                  R.option [ RP.Value (labelFromStepType OutputStep) ] [ R.str "Ouput" ]
+                                  R.option [ RP.Value (OutputStep "" |> labelFromStepType) ] [ R.str "Ouput" ]
                                   R.option [ RP.Value (labelFromStepType ComputationStep) ] [R.str "Computation" ] ] ] ]
                       yield! viewStepTypeOptions editStep dispatch
                       yield Field.div [ Field.IsGrouped ]
@@ -261,7 +321,8 @@ let viewQuickViewBody model dispatch =
                                 [ Button.Disabled (baseStep = editStep)
                                   Button.OnClick (fun _ -> dispatch ResetStepEdits) ]
                                 [ R.str "Cancel" ] ] ]
-                      yield! viewAddNode baseStep dispatch ] ] ]
+                      yield! viewAddNode baseStep dispatch
+                      yield! viewLastOutputDetails baseStep model dispatch ] ] ]
     | _, _ ->
         Quickview.body []
             [ Content.content [ Content.CustomClass "quickview-content--with-padding" ]
@@ -271,7 +332,7 @@ let viewWorkflowPane model dispatch =
     [ R.h1 [ RP.Class "is-size-3" ] [ R.str model.Workspace.Value.Name ]
       R.hr []
       Container.container [ Container.IsFluid ]
-        (viewGraphPanel model dispatch)
+          (viewGraphPanel model dispatch)
       Quickview.quickview [ Quickview.IsActive model.QuickViewModel.IsActive ]
         [ Quickview.header []
             [ Quickview.title [] [ R.str "Edit Step" ]

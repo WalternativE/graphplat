@@ -5,16 +5,13 @@ open FSharp.FGL
 open Domain
 open Domain.Model
 open Computations
+open Shared
 
 type StepValue =
     | Unit
     | Scalar of double
     | Graph of Graph<int, string, string>
     | ExecutionError of string
-
-type LabeledOutput =
-    { Label : string
-      Output : StepValue }
 
 // I want to have a registry for computations
 // initially this will be hardcoded in the future it will be a service
@@ -69,6 +66,37 @@ type WorkflowExecutorMsg =
 type WorkerMsg =
     | ExecuteStep of StepValue * WorkflowStep
 
+let toSimpleGraph (fglGraph : Graph) : SimpleGraph =
+    let vertizes =
+        fglGraph
+        |> Directed.Vertices.tovertexList
+        |> List.map (fun (node, label) -> { Id = node; Label = label } )
+
+    let edges =
+        vertizes
+        |> List.map
+            (fun node ->
+                let ((_, node, _, oa), _) = Graph.decompose node.Id fglGraph
+                oa
+                |> List.map
+                    (fun (otherNode, edgeLabel) ->
+                        { From = node
+                          To = otherNode
+                          Label = edgeLabel } ) )
+        |> List.collect id
+
+    { Nodes = vertizes; Edges = edges }
+
+let mapStepValueToSharedOutput (value : StepValue) =
+    match value with
+    | Unit -> WorkflowComputationOutput.Unit
+    | Scalar v -> WorkflowComputationOutput.Scalar v
+    | Graph g ->
+        g
+        |> toSimpleGraph
+        |> WorkflowComputationOutput.Graph
+    | ExecutionError m -> WorkflowComputationOutput.Error m
+
 type WorkerAgent (wft : WorkflowTree, executorRef : Agent<WorkflowExecutorMsg>) =
     let workerId =
         Guid.NewGuid ()
@@ -88,14 +116,14 @@ type WorkerAgent (wft : WorkflowTree, executorRef : Agent<WorkflowExecutorMsg>) 
 
                 let nextParam =
                     match currentStep.StepType with
-                    | OutputStep ->
+                    | OutputStep label ->
                         // might be the best to have an intermediary DU which is passed around
                         // the thinking is that it is routed to the next step
                         // the next step can take this as input
                         // the executor can inspect the routed values and log them
                         // it can also grab all values marked as output and cash them for the
                         // client
-                        RegisterOutput { Label = "GenericOutputLabel"; Output = value } |> executorRef.Post
+                        RegisterOutput { Label = label; Output = mapStepValueToSharedOutput value } |> executorRef.Post
                         Unit
                     | InputStep inputType ->
                         // TODO this should contain some sort of logic

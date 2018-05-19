@@ -28,3 +28,31 @@ Directed.Vertices.tovertexList g
 Directed.Edges.iter (fun v ov e -> printfn "vertex1 %A vertex2 %A edge %A" v ov e) g
 
 Directed.Graph.toAdjacencyMatrix g
+
+Graph.decompose 1 g
+
+#load "Shared/Domain.fs"
+open Domain.Model
+
+let toSimpleGraph (fglGraph : Graph<int, string, string>) : SimpleGraph =
+    let vertizes =
+        fglGraph
+        |> Directed.Vertices.tovertexList
+        |> List.map (fun (node, label) -> { Id = node; Label = label } )
+
+    let edges =
+        vertizes
+        |> List.map
+            (fun node ->
+                let ((_, node, _, oa), _) = Graph.decompose node.Id fglGraph
+                oa
+                |> List.map
+                    (fun (otherNode, edgeLabel) ->
+                        { From = node
+                          To = otherNode
+                          Label = edgeLabel } ) )
+        |> List.collect id
+
+    { Nodes = vertizes; Edges = edges }
+
+toSimpleGraph g

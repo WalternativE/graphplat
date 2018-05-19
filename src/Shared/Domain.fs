@@ -30,11 +30,13 @@ module Model =
         | EmptyInput
         | ConstantInput
 
+    type OutputLabel = string
+
     type StepType =
         | Unassigned
         | InputStep of InputType
         | ComputationStep
-        | OutputStep
+        | OutputStep of OutputLabel
 
     type WorkflowStepId = Guid
 
