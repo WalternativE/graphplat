@@ -281,7 +281,8 @@ let securedApiRouter = scope {
     post "/workflows" createWorkflow
     post "/workflows/add-step" handleAddStep
     post "/workflows/change-step" handleChangeStep
-    postf "/workflows/%O/execute" executeWorkflow }
+    // I think right now get is appropriate as it is still synchronous and blocking
+    getf "/workflows/%O/execute" executeWorkflow }
 
 let apiRouter = scope {
     pipe_through (pipeline { set_header "x-pipeline-type" "Api" })

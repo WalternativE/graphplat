@@ -4,6 +4,7 @@ open System
 open FSharp.FGL
 open Domain
 open Domain.Model
+open Computations
 
 type StepValue =
     | Unit
@@ -19,13 +20,14 @@ type LabeledOutput =
 // initially this will be hardcoded in the future it will be a service
 // where I register functions/containers - the computation id will be bound to computation block
 let getComputationMethod (compId : Guid) =
-    // currently we only supply support for one constant method
+    let repo =Repository.getRepository ()
+    let computation = repo.GetComputation compId
+
     (fun (value : StepValue) ->
         match value with
         | Graph g ->
-            Directed.Vertices.count g
-            |> double
-            |> Scalar
+            computation g
+            |> Graph
         | _ -> ExecutionError "This method is not applicable to the type you passed.")
 
 // same as with inputs - I'd like to also reference the output collection of other
@@ -101,7 +103,8 @@ type WorkerAgent (wft : WorkflowTree, executorRef : Agent<WorkflowExecutorMsg>) 
                     | ComputationStep ->
                         // TODO this should also contain logic
                         let computation =
-                            Guid.NewGuid () |> getComputationMethod
+                           Guid.Parse "9a98065c-83fd-4823-a9e7-dc11e250253a"
+                           |> getComputationMethod
                         computation value
                     | Unassigned ->
                         failwith "An unassigned step should never be run"
