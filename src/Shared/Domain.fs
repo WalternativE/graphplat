@@ -28,7 +28,7 @@ module Model =
 
     type InputType =
         | EmptyInput
-        | ConstantInput of SimpleGraph
+        | ConstantInput
 
     type StepType =
         | Unassigned

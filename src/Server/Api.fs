@@ -16,6 +16,7 @@ open Domain.Commands
 open Domain.Model
 open Domain.Events
 open DataAccess
+open GraphProcessing
 
 [<Literal>]
 let connectionString = "Host=localhost;Port=5432;Username=postgres;Password=admin123;Database=graphplat"
@@ -245,6 +246,25 @@ let handleChangeStep (nxt : HttpFunc) (ctx : HttpContext) = task {
         return! resp nxt ctx
 }
 
+let executeWorkflow (workflowId : Guid) (nxt : HttpFunc) (ctx : HttpContext) = task {
+    let user = getUser ctx
+
+    let queryResult =
+        GetWorkflow (user.Id, workflowId)
+        |> WorkflowQuery
+        |> queryHandler
+
+    match queryResult with
+    | None ->
+        let resp = setStatusCode 404 >=> text "The requested workflow could not be found"
+        return! resp nxt ctx
+    | Some (WorkflowResult wf) ->
+        use executor = new ExecutorAgent ()
+        let! result = executor.Execute wf |> Async.StartAsTask
+        return! json result nxt ctx
+    | Some (_) -> return! handleUnexpectedBehavior nxt ctx
+}
+
 let securedApiRouter = scope {
     pipe_through (Auth.requireAuthentication JWT)
     get "/users/current" getCurrentUser
@@ -260,7 +280,8 @@ let securedApiRouter = scope {
     getf "/workflows/%O" getWorkflow
     post "/workflows" createWorkflow
     post "/workflows/add-step" handleAddStep
-    post "/workflows/change-step" handleChangeStep }
+    post "/workflows/change-step" handleChangeStep
+    postf "/workflows/%O/execute" executeWorkflow }
 
 let apiRouter = scope {
     pipe_through (pipeline { set_header "x-pipeline-type" "Api" })
