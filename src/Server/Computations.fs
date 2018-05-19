@@ -6,7 +6,7 @@ open FSharp.FGL
 type Graph = Graph<int, string, string>
 
 type IComputationRepository =
-
+    abstract member GetIdentifiers : unit -> Guid list
     abstract member GetComputation : Guid -> (Graph -> Graph)
 
 module private Internal =
@@ -72,6 +72,11 @@ module private Internal =
         interface IComputationRepository with
             member this.GetComputation (id : Guid) =
                 Map.find id lookupTable
+
+            member this.GetIdentifiers () =
+                lookupTable
+                |> Map.toList
+                |> List.map (fun (k, v) -> k)
 
 
 module Repository =

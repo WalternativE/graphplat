@@ -34,7 +34,8 @@ type GraphModalModel =
 type QuickViewModel =
     { IsActive : bool
       Step : WorkflowStep option
-      EditStepState : WorkflowStep option }
+      EditStepState : WorkflowStep option
+      ComputationLookups : Guid list }
 
 type Model =
     { UserData : UserData
@@ -68,10 +69,12 @@ type Message =
     | WorkflowExecuted of LabeledOutput list
     | OpenGraphModal of SimpleGraph
     | CloseGraphModal
+    | LoadComputationLookupList
+    | ComputationLookupListLoaded of string list
 
 let init (userData : UserData) (wId : Guid) =
     let gm = { IsActive = false; GraphToDisplay = None }
-    let qv = { IsActive = false; Step = None; EditStepState = None }
+    let qv = { IsActive = false; Step = None; EditStepState = None; ComputationLookups = [] }
 
     { UserData = userData
       WorkspaceId = wId
@@ -97,6 +100,9 @@ let changeStepCmd step token =
 let executeWorkflowCmd wfId token =
     Cmd.ofPromise executeWorkflow (wfId, token) WorkflowExecuted FetchError
 
+let loadComputationLookupCmd token =
+    Cmd.ofPromise getComputationIdentifiers token ComputationLookupListLoaded FetchError
+
 let update (msg : Message) (model : Model) =
     match msg with
     | LookUpWorkspace wsid ->
@@ -117,7 +123,7 @@ let update (msg : Message) (model : Model) =
         { model with
             PageState = Initialised
             Workspace = Some ws
-            GraphModel = graphModel }, cmd, NoOp
+            GraphModel = graphModel }, Cmd.batch [cmd; loadComputationLookupCmd model.UserData.Token], NoOp
     | WorkflowCreated wf ->
         let gm, gcmd = Graph.init wf.WorkflowTree
 
@@ -228,6 +234,11 @@ let update (msg : Message) (model : Model) =
         { model with GraphModalModel = { model.GraphModalModel with IsActive = true } }, Cmd.none, NoOp
     | CloseGraphModal ->
         { model with GraphModalModel = { model.GraphModalModel with IsActive = false } }, Cmd.none, NoOp
+    | LoadComputationLookupList ->
+        model, loadComputationLookupCmd model.UserData.Token, NoOp
+    | ComputationLookupListLoaded ids ->
+        let comGuids = ids |> List.map Guid.Parse
+        { model with QuickViewModel = { model.QuickViewModel with ComputationLookups = comGuids } }, Cmd.none, NoOp
 
 
 let viewGraphPanel model dispatch =
@@ -252,16 +263,16 @@ let labelFromStepType (st : StepType) =
     | Unassigned -> "Unassigned"
     | InputStep _ -> "Input"
     | OutputStep _ -> "Output"
-    | ComputationStep -> "Computation"
+    | ComputationStep _ -> "Computation"
 
 let stepTypeFromLabel (l : string) =
     match l with
     | "Input" -> EmptyInput |> InputStep
     | "Output" -> OutputStep ""
-    | "Computation" -> ComputationStep
+    | "Computation" -> ComputationStep None
     | _ -> Unassigned
 
-let viewStepTypeOptions (step : WorkflowStep) dispatch =
+let viewStepTypeOptions (qvm : QuickViewModel) (step : WorkflowStep) dispatch =
     match step.StepType with
     | Unassigned -> []
     | InputStep inputType ->
@@ -277,7 +288,33 @@ let viewStepTypeOptions (step : WorkflowStep) dispatch =
                   Input.OnChange (fun ev ->
                     let output = ev.target?value |> string |> OutputStep
                     StageStepEdit { step with StepType = output } |> dispatch) ] ] ]
-    | ComputationStep -> []
+    | ComputationStep compId ->
+        let toOptions (lookups : Guid list ) =
+            lookups
+            |> List.map (fun id -> R.option [ RP.Value (string id) ] [ R.str (string id) ] )
+
+        let mapToCompId (s : string) =
+            let compId =
+                match s with
+                | s when s = "" -> None
+                | s -> s |> Guid.Parse |> Some
+            ComputationStep compId
+
+        let fromCompId (cid : ComputationId option) =
+            match cid with
+            | None -> ""
+            | Some id -> string id
+
+        [ Field.div []
+            [ Label.label [] [ R.str "Computation ID" ]
+              Select.select []
+                [ R.select
+                    [ fromCompId compId |> RP.Value
+                      RP.OnChange (fun ev ->
+                        let comp = ev.target?value |> string |> mapToCompId
+                        StageStepEdit { step with StepType = comp } |> dispatch) ]
+                    [ yield R.option [ RP.Value "" ] [ R.str "None selected" ]
+                      yield! toOptions qvm.ComputationLookups ] ] ] ]
 
 let handleAddNewStep (step : WorkflowStep) (dispatch : Message -> unit) =
     Behaviour.newWorkflowStep ()
@@ -318,7 +355,7 @@ let viewLastOutputDetails step model dispatch =
         match step.StepType with
         | Unassigned -> []
         | InputStep _ -> []
-        | ComputationStep -> []
+        | ComputationStep _ -> []
         | OutputStep label ->
             [ yield R.hr []
               yield! fromOutputs label wfOutputs ]
@@ -342,8 +379,8 @@ let viewQuickViewBody model dispatch =
                                 [ R.option [ RP.Value (labelFromStepType Unassigned) ] [ R.str "Unassigned" ]
                                   R.option [ RP.Value (InputStep EmptyInput |> labelFromStepType) ] [ R.str "Input" ]
                                   R.option [ RP.Value (OutputStep "" |> labelFromStepType) ] [ R.str "Ouput" ]
-                                  R.option [ RP.Value (labelFromStepType ComputationStep) ] [R.str "Computation" ] ] ] ]
-                      yield! viewStepTypeOptions editStep dispatch
+                                  R.option [ RP.Value (ComputationStep None |> labelFromStepType) ] [R.str "Computation" ] ] ] ]
+                      yield! viewStepTypeOptions model.QuickViewModel editStep dispatch
                       yield Field.div [ Field.IsGrouped ]
                         [ Control.div []
                             [ Button.button

@@ -169,3 +169,14 @@ let executeWorkflow (args: WorkflowId * JWT) = promise {
         |> extractFetchError
         |> failwithf "%s"
 }
+
+let getComputationIdentifiers (token : JWT) = promise {
+    let props = standardGetProps token
+
+    try
+        return! Fetch.fetchAs<string list> "/api/secured/computations" props
+    with e ->
+        return e.Message
+        |> extractFetchError
+        |> failwithf "%s"
+}

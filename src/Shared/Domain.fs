@@ -31,11 +31,12 @@ module Model =
         | ConstantInput
 
     type OutputLabel = string
+    type ComputationId = Guid
 
     type StepType =
         | Unassigned
         | InputStep of InputType
-        | ComputationStep
+        | ComputationStep of ComputationId option
         | OutputStep of OutputLabel
 
     type WorkflowStepId = Guid

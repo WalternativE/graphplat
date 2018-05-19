@@ -265,6 +265,13 @@ let executeWorkflow (workflowId : Guid) (nxt : HttpFunc) (ctx : HttpContext) = t
     | Some (_) -> return! handleUnexpectedBehavior nxt ctx
 }
 
+let handleGetComputations (nxt : HttpFunc) (ctx : HttpContext) = task {
+    let repo = Computations.Repository.getRepository ()
+    let availableComputationIds = repo.GetIdentifiers () |> List.map string
+
+    return! json availableComputationIds nxt ctx
+}
+
 let securedApiRouter = scope {
     pipe_through (Auth.requireAuthentication JWT)
     get "/users/current" getCurrentUser
@@ -282,7 +289,9 @@ let securedApiRouter = scope {
     post "/workflows/add-step" handleAddStep
     post "/workflows/change-step" handleChangeStep
     // I think right now get is appropriate as it is still synchronous and blocking
-    getf "/workflows/%O/execute" executeWorkflow }
+    getf "/workflows/%O/execute" executeWorkflow
+
+    get "/computations" handleGetComputations }
 
 let apiRouter = scope {
     pipe_through (pipeline { set_header "x-pipeline-type" "Api" })

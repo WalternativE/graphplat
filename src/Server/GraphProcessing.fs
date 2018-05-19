@@ -128,12 +128,12 @@ type WorkerAgent (wft : WorkflowTree, executorRef : Agent<WorkflowExecutorMsg>) 
                     | InputStep inputType ->
                         // TODO this should contain some sort of logic
                         Guid.NewGuid () |> getInputMethod 
-                    | ComputationStep ->
-                        // TODO this should also contain logic
-                        let computation =
-                           Guid.Parse "9a98065c-83fd-4823-a9e7-dc11e250253a"
-                           |> getComputationMethod
-                        computation value
+                    | ComputationStep compId ->
+                        match compId with
+                        | None -> ExecutionError "The requested computation could not be found"
+                        | Some cId ->
+                            let computation = getComputationMethod cId
+                            computation value
                     | Unassigned ->
                         failwith "An unassigned step should never be run"
 
