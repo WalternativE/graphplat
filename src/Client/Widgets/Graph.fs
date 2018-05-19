@@ -1,21 +1,24 @@
 module Graph
 
+open System
+
 open Fable.Core
 open Fable.Core.JsInterop
-open Elmish
-open Cytoscape
-open System
 open Fable.Import.React
-open Domain
-open Domain.Model
-open Domain.Commands
+
+open Elmish
 open Fulma
+
+open Domain
+open Domain.Commands
+open Domain.Model
 
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
-module C = Cytoscape
 module B = Fable.Import.Browser
 module IR = Fable.Import.React
+
+module C = Cytoscape
 
 type Model =
     { Id : string
@@ -81,42 +84,7 @@ let toNodesAndEdges (wf : WorkflowTree) =
 
     Set.ofList nodes, edges
 
-let createNode (id :string) =
-    let eDef = createEmpty<C.Cytoscape.NodeDefinition>
-    eDef.group <- Some C.Cytoscape.ElementGroup.Nodes
-    let dataDef = createEmpty<C.Cytoscape.NodeDataDefinition>
-    dataDef.id <- Some id
-    eDef.data <- dataDef
-    eDef
-
-let createEdge (e : string * string) =
-    let (id1, id2) = e
-    let def = createEmpty<C.Cytoscape.EdgeDefinition>
-    def.group <- Some C.Cytoscape.ElementGroup.Edges
-    let data = createEmpty<C.Cytoscape.EdgeDataDefinition>
-    data.source <- id1
-    data.target <- id2
-    def.data <- data
-    def
-
-let createGraph (ids : Set<string>) (edges : (string * string) list) =
-    let nodes =
-        ids
-        |> Set.toList
-        |> List.map createNode
-        |> ResizeArray
-
-    let edges =
-        edges
-        |> List.map createEdge
-        |> ResizeArray
-
-    let elsDef = createEmpty<C.Cytoscape.ElementsDefinition>
-    elsDef.nodes <- nodes
-    elsDef.edges <- edges
-    elsDef
-
-let handleNodeTap (dispatch : DispatchFunc) (eo : Cytoscape.EventObject) =
+let handleNodeTap (dispatch : DispatchFunc) (eo : C.Cytoscape.EventObject) =
     match eo.target with
     | None -> ()
     | Some t -> !!t?id() |> NodeTapped |> dispatch
@@ -124,7 +92,7 @@ let handleNodeTap (dispatch : DispatchFunc) (eo : Cytoscape.EventObject) =
 let graphWorkflowTree (wft : WorkflowTree) =
     wft
     |> toNodesAndEdges
-    |> (fun (nodes, edges) -> createGraph nodes edges)
+    |> (fun (nodes, edges) -> C.Utilities.createGraph nodes edges)
 
 let initCytoCore (wf : WorkflowTree) el dispatch =
     let graph =

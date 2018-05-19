@@ -2859,3 +2859,47 @@ module Cytoscape =
         /// completing the animation or frame for the next frame of the animation.
         /// http://js.cytoscape.org/#ani.promise</param>
         abstract promise: ?animationEvent: U3<string, string, string> -> Promise<EventObject>
+
+module Utilities =
+
+    open Fable.Core
+    open Fable.Core.JsInterop
+
+    module C = Cytoscape
+    
+    let createNode (id :string) =
+        let eDef = createEmpty<C.Cytoscape.NodeDefinition>
+        eDef.group <- Some C.Cytoscape.ElementGroup.Nodes
+        let dataDef = createEmpty<C.Cytoscape.NodeDataDefinition>
+        dataDef.id <- Some id
+        eDef.data <- dataDef
+        eDef
+
+    let createEdge (e : string * string) =
+        let (id1, id2) = e
+        let def = createEmpty<C.Cytoscape.EdgeDefinition>
+        def.group <- Some C.Cytoscape.ElementGroup.Edges
+        let data = createEmpty<C.Cytoscape.EdgeDataDefinition>
+        data.source <- id1
+        data.target <- id2
+        def.data <- data
+        def
+
+    let createGraph (ids : Microsoft.FSharp.Collections.Set<string>) (edges : (string * string) list) =
+        let nodes =
+            ids
+            |> Microsoft.FSharp.Collections.Set.toList
+            |> List.map createNode
+            |> ResizeArray
+
+        let edges =
+            edges
+            |> List.map createEdge
+            |> ResizeArray
+
+        let elsDef = createEmpty<C.Cytoscape.ElementsDefinition>
+        elsDef.nodes <- nodes
+        elsDef.edges <- edges
+        elsDef
+
+

@@ -20,11 +20,16 @@ open Shared
 module R = Fable.Helpers.React
 module RP = Fable.Helpers.React.Props
 module B = Fable.Import.Browser
+module C = Cytoscape
 
 type PageState =
     | FreshlyOpened
     | Initialised
     | InitialisationFailed
+
+type GraphModalModel =
+    { IsActive : bool
+      GraphToDisplay : SimpleGraph option }
 
 type QuickViewModel =
     { IsActive : bool
@@ -38,7 +43,8 @@ type Model =
       PageState : PageState
       GraphModel : Graph.Model option
       QuickViewModel : QuickViewModel
-      LastWorkflowOutput : LabeledOutput list option }
+      LastWorkflowOutput : LabeledOutput list option
+      GraphModalModel : GraphModalModel }
 
 type ExternalMessage =
     | NoOp
@@ -60,8 +66,11 @@ type Message =
     | WorkflowStepChanged of Workflow
     | ExecuteWorkflow of WorkflowId
     | WorkflowExecuted of LabeledOutput list
+    | OpenGraphModal of SimpleGraph
+    | CloseGraphModal
 
 let init (userData : UserData) (wId : Guid) =
+    let gm = { IsActive = false; GraphToDisplay = None }
     let qv = { IsActive = false; Step = None; EditStepState = None }
 
     { UserData = userData
@@ -70,7 +79,8 @@ let init (userData : UserData) (wId : Guid) =
       PageState = FreshlyOpened
       GraphModel = None
       QuickViewModel = qv
-      LastWorkflowOutput = None }, LookUpWorkspace wId |> Cmd.ofMsg
+      LastWorkflowOutput = None
+      GraphModalModel = gm }, LookUpWorkspace wId |> Cmd.ofMsg
 
 let getWorkspaceCmd wsId token =
     Cmd.ofPromise getWorkspace (wsId, token) WorkspaceFound FetchError
@@ -195,6 +205,29 @@ let update (msg : Message) (model : Model) =
         model, executeWorkflowCmd wfId model.UserData.Token, NoOp
     | WorkflowExecuted wfOutputs ->
         { model with LastWorkflowOutput = Some wfOutputs }, Cmd.none, NoOp
+    | OpenGraphModal sg ->
+        let nodes =
+            sg.Nodes
+            |> List.map (fun n -> string n.Id)
+            |> Set.ofList
+
+        let edges =
+            sg.Edges
+            |> List.map (fun e -> string e.From, string e.To)
+
+        let graph =
+            C.Utilities.createGraph nodes edges
+
+        let el = B.document.getElementById "graph-modal-cy-container"
+        let opts = createEmpty<C.Cytoscape.CytoscapeOptions>
+        opts.container <- (Some el)
+        opts.elements <- Some !^graph
+
+        C.cytoscape opts |> ignore
+
+        { model with GraphModalModel = { model.GraphModalModel with IsActive = true } }, Cmd.none, NoOp
+    | CloseGraphModal ->
+        { model with GraphModalModel = { model.GraphModalModel with IsActive = false } }, Cmd.none, NoOp
 
 
 let viewGraphPanel model dispatch =
@@ -268,7 +301,9 @@ let viewLastOutputDetails step model dispatch =
         | Unit -> R.str "Empty output"
         | Scalar v -> sprintf "Scalar output of %f" v |> R.str
         | Error m -> sprintf "Error output with message: %s" m |> R.str
-        | Graph g -> sprintf "Graph output" |> R.str
+        | Graph g ->
+            Button.button [ Button.OnClick (fun _ -> OpenGraphModal g |> dispatch ) ]
+             [ sprintf "Graph Output" |> R.str ]
 
     let fromOutputs (label : OutputLabel) (outputs : LabeledOutput list) =
         outputs
@@ -329,6 +364,9 @@ let viewQuickViewBody model dispatch =
                 [ R.str "The step could not be found. Please try to refresh you browser :(" ] ]
 
 let viewWorkflowPane model dispatch =
+    let hideQuickView _ = dispatch HideQuickView
+    let closeModal _ = dispatch CloseGraphModal
+
     [ R.h1 [ RP.Class "is-size-3" ] [ R.str model.Workspace.Value.Name ]
       R.hr []
       Container.container [ Container.IsFluid ]
@@ -336,11 +374,22 @@ let viewWorkflowPane model dispatch =
       Quickview.quickview [ Quickview.IsActive model.QuickViewModel.IsActive ]
         [ Quickview.header []
             [ Quickview.title [] [ R.str "Edit Step" ]
-              Delete.delete [ Delete.OnClick (fun _ -> dispatch HideQuickView) ] [] ]
+              Delete.delete [ Delete.OnClick hideQuickView ] [] ]
           (viewQuickViewBody model dispatch)
           Quickview.footer []
-            [ Button.button [ Button.OnClick (fun _ -> dispatch HideQuickView) ]
-                [ R.str "Close" ] ] ] ]
+            [ Button.button [ Button.OnClick hideQuickView ]
+                [ R.str "Close" ] ] ]
+      Modal.modal [ Modal.IsActive model.GraphModalModel.IsActive ]
+        [ Modal.background [ Props [ RP.OnClick closeModal ] ] []
+          Modal.Card.card []
+            [ Modal.Card.head []
+                [ Modal.Card.title [] [ R.str "Graph Display" ]
+                  Delete.delete [ Delete.OnClick closeModal ] [] ]
+              Modal.Card.body []
+                [ Content.content []
+                    [ R.div [ RP.Id "graph-modal-cy-container" ] [] ] ]
+              Modal.Card.foot []
+                [ Button.button [ Button.OnClick closeModal ] [ R.str "Close" ] ] ] ] ]
 
 let viewWorkspace model dispatch =
     match model.PageState with
