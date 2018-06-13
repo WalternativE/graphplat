@@ -178,7 +178,7 @@ let viewNewWorkspaceDialog (model : Model) dispatch =
 let viewContent (model : Model) dispatch =
     match model.State with
     | UnAuthenticated ->
-        [ R.h1 [ RP.Class "is-size-3" ] [ R.str "Weclome, please login to proceed!" ] ]
+        [ R.h1 [ RP.Class "is-size-3" ] [ R.str "Welcome, please login to proceed!" ] ]
     | Authenticated ->
         [ R.h1 [ RP.Class "is-size-3" ] [ sprintf "Welcome, %s" model.UserData.Value.User.Name |> R.str ]
           R.hr []
